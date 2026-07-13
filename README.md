@@ -31,9 +31,11 @@ aibar prev-provider
 aibar cycle-window
 ```
 
-`next-provider` and `prev-provider` remain safe no-ops until the multi-provider
-UX phase adds provider pinning. `refresh` also works through `SIGUSR1` for hooks
-and other local integrations.
+The initial view shows the most constrained available window across providers.
+Scroll up or down to temporarily pin a provider; reaching either end returns
+to aggregate mode. Middle-click cycles that view's windows, while `refresh`
+also works through `SIGUSR1` for hooks and other local integrations. View
+selection is session-only and resets to aggregate mode after a daemon restart.
 
 ## Waybar
 
@@ -69,6 +71,11 @@ Then use this module definition:
 }
 ```
 
+Hovering the compact icon shows every available provider and usage window.
+Each window is rendered with a fixed-width usage bar, a whole-number
+percentage, and its reset countdown. Provider names are shown without account
+plan labels because those labels are not available from the usage data.
+
 The absolute path matches the current installation because `~/.local/bin` is
 not guaranteed to be in Waybar's inherited `PATH`. If the binary is installed
 on `PATH`, the shorter `aibar ...` commands are equivalent. The drawer uses
@@ -89,6 +96,14 @@ Suggested CSS:
 #custom-aibar.critical     { color: @foreground; font-weight: bold; }
 #custom-aibar.stale        { opacity: 0.55; }
 #custom-aibar.auth-error   { color: @foreground; font-weight: bold; }
+
+tooltip {
+  padding: 8px 10px;
+}
+tooltip label {
+  font-family: 'CaskaydiaMono Nerd Font';
+  font-size: 12px;
+}
 ```
 
 After editing Waybar configuration or CSS on Omarchy, apply the changes with:
@@ -97,8 +112,10 @@ After editing Waybar configuration or CSS on Omarchy, apply the changes with:
 omarchy restart waybar
 ```
 
-If your selected Omarchy theme defines `@yellow` and `@red`, those variables
-can be used for the warning, critical, and auth-error colors instead.
+The suggested severity styling intentionally uses `@foreground`, opacity, and
+font weight so it remains valid for themes that define only the standard
+Omarchy foreground/background variables. It does not require `@yellow` or
+`@red` to be present.
 
 The current Codex rollout format may expose only a weekly window and may put it
 in `primary` while leaving `secondary` null. aibar classifies windows by their
@@ -122,6 +139,11 @@ are not converted into an estimated quota percentage. Optional `Stop` and
 [`docs/claude-hooks.md`](docs/claude-hooks.md).
 
 ## Security and roadmap
+
+The current UX supports aggregate constrained-window selection, temporary
+provider pinning, window cycling, complete provider tooltips, and pacing
+status calculated from each window's reset time. Cursor support remains the
+next provider milestone.
 
 Codex remains local-only. Claude reads its existing local OAuth credential and
 uses the undocumented usage endpoint; credentials are never stored by aibar

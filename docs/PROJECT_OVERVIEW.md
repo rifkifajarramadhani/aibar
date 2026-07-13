@@ -165,14 +165,14 @@ The daemon emits:
 {"text":"󰚩","tooltip":"...","class":"ok","percentage":6}
 ```
 
-The visible bar uses the compact AI/robot icon. The tooltip contains:
+The visible bar uses the compact AI/robot icon. Hovering it shows a grouped
+plain-text usage card containing:
 
-- provider name;
-- each available window;
-- used percentage;
-- reset countdown;
-- data age;
-- stale/error status when applicable.
+- every available provider and window in stable order;
+- `Rolling Usage` and `Weekly Usage` labels for the supported windows;
+- a fixed-width 20-cell `#`/`-` usage bar and whole-number percentage;
+- the reset countdown below each bar;
+- provider-scoped stale/auth status when applicable.
 
 CSS states are:
 
@@ -252,12 +252,12 @@ permissions.
 - 300-second dashboard polling.
 - Explicit auth-error state and recovery tooltip.
 
-### Phase 5 — UX polish
+### Phase 5 — UX polish (implemented)
 
 - Multi-provider constrained-window selection.
 - Full tooltip grid and pacing indicator.
 - Provider/window pinning and scroll actions.
-- Omarchy theme-aware colors.
+- Theme-safe styling through standard Omarchy foreground variables.
 
 ### Phase 6 — distribution
 

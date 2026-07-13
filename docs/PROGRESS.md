@@ -4,10 +4,11 @@ Last updated: 2026-07-13
 
 ## Current status
 
-The Codex and Claude vertical slices are implemented. The daemon reads local
-Codex rollout files, reads Claude Code OAuth credentials when configured,
-polls Claude usage no more than once every five minutes, emits a compact AI
-icon, preserves last-good usage, and keeps provider failures isolated.
+The Codex and Claude vertical slices plus the multi-provider UX are
+implemented. The daemon reads local Codex rollout files, reads Claude Code
+OAuth credentials when configured, polls Claude usage no more than once every
+five minutes, emits a compact AI icon, preserves last-good usage, and keeps
+provider failures isolated.
 
 ## Completed
 
@@ -70,8 +71,24 @@ icon, preserves last-good usage, and keeps provider failures isolated.
 - `custom/aibar` is not listed directly in `modules-right`.
 - Tray reveal remains hover-based; `click-to-reveal` is not configured.
 - The visible text is the Nerd Font AI/robot icon `󰚩`.
+- Hovering the icon shows all provider windows with fixed-width usage bars,
+  whole-number percentages, and reset countdowns.
 - Current spacing is `margin: 0 16px 0 -4px`.
 - Waybar has been restarted after live configuration changes.
+
+### Multi-provider UX
+
+- Aggregate mode selects the most constrained window across visible providers.
+- Scroll navigation pins providers in deterministic order and returns to
+  aggregate mode at either boundary.
+- Providers with auth/errors remain selectable so their recovery status can be
+  inspected directly.
+- Middle-click cycles stable window order; selection resets after navigation
+  and is not persisted across daemon restarts.
+- Tooltips use a screenshot-style grouped layout with provider-scoped stale and
+  auth status lines.
+- Severity styling remains compatible with themes that expose only
+  `@foreground` and `@background`.
 
 ### Documentation/assets
 
@@ -114,8 +131,8 @@ Additional validation performed:
   windows actually supplied by Codex.
 - The aibar icon is hidden with the rest of the tray children while the tray
   drawer is collapsed. Hover over the existing expand icon to reveal it.
-- `next-provider` and `prev-provider` remain safe no-ops until provider
-  pinning and multi-provider navigation are implemented.
+- Provider and window selection is session-only; restarting the daemon returns
+  to aggregate mode.
 - The SVG icon is checked in, but the live compact rendering currently uses
   the Nerd Font glyph so CSS state colors work reliably.
 - Current live Waybar config uses an absolute binary path because
@@ -132,13 +149,8 @@ Additional validation performed:
 
 ### Multi-provider UX
 
-- Merge Claude and Cursor snapshots without allowing failures to affect other
-  providers.
-- Select the most constrained window across providers.
-- Add provider pinning and meaningful scroll behavior.
-- Add pacing indicator arithmetic.
-- Expand tooltip into the complete provider/window grid.
-- Integrate theme colors from the active Omarchy theme.
+- Extend the current UX to the future Cursor provider without allowing its
+  failures to affect Codex or Claude.
 
 ### Distribution
 
@@ -150,8 +162,7 @@ Additional validation performed:
 
 ## Recommended next session
 
-Exercise the live Claude provider once with the existing local credentials,
-then continue with multi-provider UX: provider pinning, meaningful scroll
-behavior, pacing arithmetic, and theme-aware colors. Keep the undocumented
-endpoint isolated and treat schema/auth failures as expected provider-local
-states.
+Continue with the Cursor provider: restricted credential loading, isolated
+dashboard polling, explicit auth-error recovery guidance, and fixture-backed
+schema/error tests. Keep undocumented endpoints isolated and treat
+schema/auth failures as expected provider-local states.

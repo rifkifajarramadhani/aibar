@@ -111,13 +111,16 @@ func Run(ctx context.Context, cfg Config) error {
 			case control.Refresh:
 				refreshSources(ctx, snapshots, refreshables)
 			case control.CycleWindow:
-				view.WindowIndex++
+				view = render.CycleWindow(view)
 
 				emit()
-			case control.NextProvider, control.PrevProvider:
-				// Provider pinning becomes meaningful when Claude and Cursor
-				// are added. The command remains safe and intentionally no-ops
-				// for this Codex-only milestone.
+			case control.NextProvider:
+				view = render.NavigateProvider(store.All(), view, 1)
+
+				emit()
+			case control.PrevProvider:
+				view = render.NavigateProvider(store.All(), view, -1)
+
 				emit()
 			}
 		case snapshot := <-snapshots:

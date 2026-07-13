@@ -13,8 +13,12 @@
   "format": "{text}",
   "restart-interval": 1,
   "return-type": "json",
+  // The hover tooltip renders all provider windows as usage bars with reset
+  // countdowns; the module itself remains the compact AI icon.
   "tooltip": true,
   "on-click": "aibar refresh",
+  // Scroll pins a provider; crossing either provider boundary returns to the
+  // aggregate most-constrained view. Middle-click cycles its windows.
   "on-scroll-up": "aibar next-provider",
   "on-scroll-down": "aibar prev-provider",
   "on-click-middle": "aibar cycle-window"
