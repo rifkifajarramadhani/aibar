@@ -1,0 +1,21 @@
+// Use "group/tray-expander" in modules-right and add custom/aibar after tray.
+"group/tray-expander": {
+  "orientation": "inherit",
+  "drawer": {
+    "transition-duration": 600,
+    "children-class": "tray-group-item"
+  },
+  "modules": ["custom/expand-icon", "tray", "custom/aibar"]
+},
+
+"custom/aibar": {
+  "exec": "aibar daemon",
+  "format": "{text}",
+  "restart-interval": 1,
+  "return-type": "json",
+  "tooltip": true,
+  "on-click": "aibar refresh",
+  "on-scroll-up": "aibar next-provider",
+  "on-scroll-down": "aibar prev-provider",
+  "on-click-middle": "aibar cycle-window"
+}
