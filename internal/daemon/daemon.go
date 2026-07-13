@@ -28,6 +28,7 @@ func Run(ctx context.Context, cfg Config) error {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
+
 	if cfg.Output == nil {
 		cfg.Output = os.Stdout
 	}
@@ -36,6 +37,7 @@ func Run(ctx context.Context, cfg Config) error {
 	if err := store.Load(cfg.StatePath); err != nil {
 		fmt.Fprintf(os.Stderr, "aibar: load state: %v\n", err)
 	}
+
 	view := render.View{}
 
 	snapshots := make(chan model.Snapshot, 16)
@@ -46,14 +48,17 @@ func Run(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
+
 	if err := control.WritePID(control.PIDPath(cfg.CacheDir)); err != nil {
-		server.Close()
+		_ = server.Close()
 		return err
 	}
+
 	defer control.RemoveRuntimeFiles(cfg.CacheDir)
 
 	watchCtx, stopWatch := context.WithCancel(ctx)
 	defer stopWatch()
+
 	go runControlServer(watchCtx, server)
 	go runWatcher(watchCtx, watcher, snapshots)
 
@@ -67,10 +72,12 @@ func Run(ctx context.Context, cfg Config) error {
 		if renderErr != nil {
 			return
 		}
+
 		line := string(data)
 		if line == lastOutput {
 			return
 		}
+
 		lastOutput = line
 		_, _ = fmt.Fprintln(cfg.Output, line)
 	}
@@ -78,6 +85,7 @@ func Run(ctx context.Context, cfg Config) error {
 
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -92,6 +100,7 @@ func Run(ctx context.Context, cfg Config) error {
 				watcher.Rescan(ctx, snapshots)
 			case control.CycleWindow:
 				view.WindowIndex++
+
 				emit()
 			case control.NextProvider, control.PrevProvider:
 				// Provider pinning becomes meaningful when Claude and Cursor
@@ -105,6 +114,7 @@ func Run(ctx context.Context, cfg Config) error {
 					fmt.Fprintf(os.Stderr, "aibar: save state: %v\n", err)
 				}
 			}
+
 			emit()
 		}
 	}
@@ -125,6 +135,7 @@ func runWatcher(ctx context.Context, watcher *codex.Watcher, out chan<- model.Sn
 			case <-ctx.Done():
 				return
 			}
+
 			timer := time.NewTimer(time.Second)
 			select {
 			case <-timer.C:
@@ -132,8 +143,10 @@ func runWatcher(ctx context.Context, watcher *codex.Watcher, out chan<- model.Sn
 				timer.Stop()
 				return
 			}
+
 			continue
 		}
+
 		return
 	}
 }

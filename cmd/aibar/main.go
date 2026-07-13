@@ -18,10 +18,12 @@ func main() {
 		usage()
 		os.Exit(2)
 	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fatal(err)
 	}
+
 	defaults := defaultsFor(home)
 
 	switch os.Args[1] {
@@ -31,8 +33,10 @@ func main() {
 		statePath := fs.String("state", defaults.statePath, "last-good state file")
 		cacheDir := fs.String("cache-dir", defaults.cacheDir, "aibar runtime directory")
 		_ = fs.Parse(os.Args[2:])
+
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
+
 		if err := daemon.Run(ctx, daemon.Config{CodexRoot: *codexRoot, StatePath: *statePath, CacheDir: *cacheDir, Output: os.Stdout}); err != nil {
 			fatal(err)
 		}
@@ -57,7 +61,9 @@ func defaultsFor(home string) defaultPaths {
 	if cacheDir == "" {
 		cacheDir = filepath.Join(home, ".cache")
 	}
+
 	cacheDir = filepath.Join(cacheDir, "aibar")
+
 	return defaultPaths{
 		codexRoot: filepath.Join(home, ".codex", "sessions"),
 		statePath: filepath.Join(cacheDir, "state.json"),
