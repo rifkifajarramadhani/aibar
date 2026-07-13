@@ -1,9 +1,9 @@
 # aibar
 
-`aibar` is a small Waybar usage monitor for AI coding tools. The first
-milestone implements the local Codex provider: it watches
-`~/.codex/sessions/**/rollout-*.jsonl` and reads the server-provided rate-limit
-windows without making network calls.
+`aibar` is a small Waybar usage monitor for AI coding tools. It watches the
+local Codex provider and, when Claude Code credentials are available, polls
+Claude's OAuth usage endpoint while watching local Claude project files for
+refresh triggers.
 
 ## Build and run
 
@@ -16,6 +16,14 @@ The daemon keeps stdout open and emits one Waybar JSON object per changed
 render. It reloads last-good data from `~/.cache/aibar/state.json` after a
 restart. Runtime control uses a private Unix socket under the same directory.
 
+Claude paths can be overridden for isolated testing:
+
+```sh
+aibar daemon \
+  --claude-credentials ~/.claude/.credentials.json \
+  --claude-projects ~/.claude/projects
+```
+
 ```sh
 aibar refresh
 aibar next-provider
@@ -23,9 +31,9 @@ aibar prev-provider
 aibar cycle-window
 ```
 
-`next-provider` and `prev-provider` are safe no-ops until the Claude and Cursor
-providers are added. `refresh` also works through `SIGUSR1` for hooks and other
-local integrations.
+`next-provider` and `prev-provider` remain safe no-ops until the multi-provider
+UX phase adds provider pinning. `refresh` also works through `SIGUSR1` for hooks
+and other local integrations.
 
 ## Waybar
 
@@ -96,12 +104,29 @@ The current Codex rollout format may expose only a weekly window and may put it
 in `primary` while leaving `secondary` null. aibar classifies windows by their
 duration and displays only windows that are actually present.
 
+Claude uses the read-only OAuth access token in
+`~/.claude/.credentials.json`. The credentials file must remain private
+(normally mode `0600`); aibar never refreshes or rewrites it. Missing
+credentials leave Claude unconfigured. Malformed or expired credentials are
+shown as `auth-error` while healthy providers continue to render.
+
+Claude usage polling uses the undocumented
+`https://api.anthropic.com/api/oauth/usage` endpoint with a five-minute minimum
+interval. Successful responses provide the `5h` and `weekly` windows. HTTP
+429 responses honor `Retry-After`, and transient failures back off while
+preserving last-good data. The endpoint may change or disappear.
+
+Local Claude JSONL token usage is used only to request a refresh; token counts
+are not converted into an estimated quota percentage. Optional `Stop` and
+`SessionEnd` hook configuration is documented in
+[`docs/claude-hooks.md`](docs/claude-hooks.md).
+
 ## Security and roadmap
 
-The Codex-first milestone does not read or store credentials and does not use
-the network. Future Claude and Cursor providers will read existing local
-credentials only; credentials must never be committed or placed in Waybar's
-world-readable configuration.
+Codex remains local-only. Claude reads its existing local OAuth credential and
+uses the undocumented usage endpoint; credentials are never stored by aibar
+or placed in Waybar's world-readable configuration. The future Cursor provider
+will follow the same isolation rules.
 
 Claude's usage endpoint and Cursor's dashboard endpoints are undocumented and
 may change or disappear. They will be isolated behind the provider interface,

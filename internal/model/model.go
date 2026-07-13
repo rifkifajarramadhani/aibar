@@ -27,6 +27,49 @@ func (s Source) String() string {
 	}
 }
 
+type ErrorKind string
+
+const (
+	ErrorAuth      ErrorKind = "auth-error"
+	ErrorRateLimit ErrorKind = "rate-limit"
+	ErrorNetwork   ErrorKind = "network-error"
+	ErrorParse     ErrorKind = "parse-error"
+)
+
+type ProviderError struct {
+	Kind ErrorKind
+	Err  error
+}
+
+func (e *ProviderError) Error() string {
+	if e == nil || e.Err == nil {
+		return string(e.Kind)
+	}
+
+	return e.Err.Error()
+}
+
+func (e *ProviderError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+
+	return e.Err
+}
+
+func NewProviderError(kind ErrorKind, err error) error {
+	return &ProviderError{Kind: kind, Err: err}
+}
+
+func ErrorKindOf(err error) ErrorKind {
+	var providerErr *ProviderError
+	if errors.As(err, &providerErr) {
+		return providerErr.Kind
+	}
+
+	return ""
+}
+
 type Window struct {
 	Label         string    `json:"label"`
 	UsedPct       float64   `json:"used_pct"`
@@ -52,6 +95,10 @@ type Provider interface {
 	Fetch(context.Context) (Snapshot, error)
 	MinInterval() time.Duration
 	Watch(context.Context, chan<- Snapshot) error
+}
+
+type Refreshable interface {
+	Refresh(context.Context, chan<- Snapshot)
 }
 
 func (s Snapshot) Good() bool {

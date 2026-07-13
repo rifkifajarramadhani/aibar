@@ -4,9 +4,10 @@ Last updated: 2026-07-13
 
 ## Current status
 
-The Codex-first vertical slice is implemented and running in Waybar. The
-daemon reads local Codex rollout files, emits a compact AI icon, preserves the
-usage tooltip, and runs independently of network availability.
+The Codex and Claude vertical slices are implemented. The daemon reads local
+Codex rollout files, reads Claude Code OAuth credentials when configured,
+polls Claude usage no more than once every five minutes, emits a compact AI
+icon, preserves last-good usage, and keeps provider failures isolated.
 
 ## Completed
 
@@ -33,6 +34,16 @@ usage tooltip, and runs independently of network availability.
 - Maps 300-minute windows to `5h` and 10080-minute windows to `weekly`.
 - Handles the observed weekly-only Codex payload where `secondary` is null.
 - Does not make network calls.
+
+### Claude provider
+
+- Reads the access token from `~/.claude/.credentials.json` without rewriting
+  or refreshing the file.
+- Polls the undocumented OAuth usage endpoint with a five-minute minimum.
+- Parses 5h and weekly windows with defensive reset and percentage handling.
+- Handles auth errors, 429 retry hints, transient backoff, and bounded bodies.
+- Watches project JSONL assistant usage and debounces local refresh triggers.
+- Includes fixture-backed credentials, parser, HTTP, and watcher tests.
 
 ### Daemon and state
 
@@ -65,6 +76,7 @@ usage tooltip, and runs independently of network availability.
 ### Documentation/assets
 
 - Root README with build, Waybar, security, and roadmap notes.
+- Opt-in Claude Code hook documentation.
 - Checked-in Waybar snippet.
 - Custom SVG asset at `assets/aibar.svg` for future icon/theme use.
 - This project overview and progress handoff.
@@ -86,6 +98,11 @@ Additional validation performed:
 - Parser tests cover weekly-only, dual-window, malformed, unknown, and reset
   formats.
 - Watcher tests cover initial discovery and newer rollout rotation.
+- Claude tests cover credential validation, usage payload parsing, HTTP error
+  classification, OAuth headers, local JSONL refresh triggers, and interval
+  gating.
+- An isolated live daemon smoke test successfully rendered Claude 5h/weekly
+  data alongside Codex without exposing credentials in output.
 - State tests cover network-anchor precedence, error preservation, and
   save/load round trips.
 - Waybar JSON config parses successfully.
@@ -97,23 +114,14 @@ Additional validation performed:
   windows actually supplied by Codex.
 - The aibar icon is hidden with the rest of the tray children while the tray
   drawer is collapsed. Hover over the existing expand icon to reveal it.
-- `next-provider` and `prev-provider` are safe no-ops until multiple providers
-  exist.
+- `next-provider` and `prev-provider` remain safe no-ops until provider
+  pinning and multi-provider navigation are implemented.
 - The SVG icon is checked in, but the live compact rendering currently uses
   the Nerd Font glyph so CSS state colors work reliably.
 - Current live Waybar config uses an absolute binary path because
   `~/.local/bin` is not guaranteed to be in Waybar's inherited PATH.
 
 ## Remaining work
-
-### Claude provider
-
-- Read Claude Code OAuth credentials from the existing local credential file.
-- Implement defensive usage endpoint parsing for 5h and weekly windows.
-- Enforce a 300-second minimum network interval.
-- Add 429 handling and backoff without retry storms.
-- Watch Claude project JSONL files for local token deltas.
-- Add Stop/SessionEnd hook documentation and integration.
 
 ### Cursor provider
 
@@ -142,8 +150,8 @@ Additional validation performed:
 
 ## Recommended next session
 
-Start with the Claude provider, but first inspect the exact current
-`~/.claude/.credentials.json` shape and the local project JSONL token records.
-Keep all endpoint parsing behind a provider-specific package and preserve the
-existing daemon/state/render contracts. Add fixtures and parser tests before
-enabling any live network polling.
+Exercise the live Claude provider once with the existing local credentials,
+then continue with multi-provider UX: provider pinning, meaningful scroll
+behavior, pacing arithmetic, and theme-aware colors. Keep the undocumented
+endpoint isolated and treat schema/auth failures as expected provider-local
+states.

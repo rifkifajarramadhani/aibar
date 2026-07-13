@@ -100,11 +100,18 @@ weekly window.
 
 ### Claude
 
-Claude is intended to use an authoritative OAuth usage snapshot as an anchor,
-then add locally observed token deltas between network fetches. A successful
-network fetch replaces the anchor. A 429 must preserve last-good data and back
-off without retry storms. A Claude Code `Stop` or `SessionEnd` hook can signal
-the daemon for a debounced refresh.
+Claude reads the OAuth access token from `~/.claude/.credentials.json` and
+uses the undocumented `https://api.anthropic.com/api/oauth/usage` endpoint as
+the authoritative usage source. The provider accepts `five_hour` and
+`seven_day`/`weekly` windows, supports both `utilization` and
+`used_percentage`, and keeps the endpoint parser isolated for schema changes.
+
+Claude Code project JSONL files are watched for assistant usage changes. Those
+changes trigger a debounced refresh request only; local token counts are not
+converted into an estimated account percentage. A successful network fetch
+replaces the last anchor. A 429 honors `Retry-After`, all attempts respect the
+five-minute minimum interval, and failures preserve last-good data. Optional
+`Stop` and `SessionEnd` hooks can signal the daemon after a session completes.
 
 ### Cursor
 
@@ -234,10 +241,10 @@ permissions.
 
 ### Phase 3 — Claude provider
 
-- OAuth credential loading.
+- Read-only OAuth credential loading.
 - 300-second usage polling with defensive parsing and backoff.
-- Local token-delta watcher and network re-anchoring.
-- Claude Code refresh hook.
+- Local token-usage watcher used as a refresh trigger.
+- Opt-in Claude Code refresh hook documentation.
 
 ### Phase 4 — Cursor provider
 

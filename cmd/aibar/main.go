@@ -30,6 +30,8 @@ func main() {
 	case "daemon":
 		fs := flag.NewFlagSet("daemon", flag.ExitOnError)
 		codexRoot := fs.String("codex-root", defaults.codexRoot, "Codex sessions directory")
+		claudeCredentials := fs.String("claude-credentials", defaults.claudeCredentials, "Claude Code credentials file")
+		claudeProjects := fs.String("claude-projects", defaults.claudeProjects, "Claude Code projects directory")
 		statePath := fs.String("state", defaults.statePath, "last-good state file")
 		cacheDir := fs.String("cache-dir", defaults.cacheDir, "aibar runtime directory")
 		_ = fs.Parse(os.Args[2:])
@@ -37,7 +39,14 @@ func main() {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 
-		if err := daemon.Run(ctx, daemon.Config{CodexRoot: *codexRoot, StatePath: *statePath, CacheDir: *cacheDir, Output: os.Stdout}); err != nil {
+		if err := daemon.Run(ctx, daemon.Config{
+			CodexRoot:         *codexRoot,
+			ClaudeCredentials: *claudeCredentials,
+			ClaudeProjects:    *claudeProjects,
+			StatePath:         *statePath,
+			CacheDir:          *cacheDir,
+			Output:            os.Stdout,
+		}); err != nil {
 			fatal(err)
 		}
 	case "refresh", "next-provider", "prev-provider", "cycle-window":
@@ -51,9 +60,11 @@ func main() {
 }
 
 type defaultPaths struct {
-	codexRoot string
-	statePath string
-	cacheDir  string
+	codexRoot         string
+	claudeCredentials string
+	claudeProjects    string
+	statePath         string
+	cacheDir          string
 }
 
 func defaultsFor(home string) defaultPaths {
@@ -65,9 +76,11 @@ func defaultsFor(home string) defaultPaths {
 	cacheDir = filepath.Join(cacheDir, "aibar")
 
 	return defaultPaths{
-		codexRoot: filepath.Join(home, ".codex", "sessions"),
-		statePath: filepath.Join(cacheDir, "state.json"),
-		cacheDir:  cacheDir,
+		codexRoot:         filepath.Join(home, ".codex", "sessions"),
+		claudeCredentials: filepath.Join(home, ".claude", ".credentials.json"),
+		claudeProjects:    filepath.Join(home, ".claude", "projects"),
+		statePath:         filepath.Join(cacheDir, "state.json"),
+		cacheDir:          cacheDir,
 	}
 }
 

@@ -31,22 +31,30 @@ func JSON(snapshots []model.Snapshot, view View, now time.Time) ([]byte, error) 
 }
 
 func Build(snapshots []model.Snapshot, view View, now time.Time) Output {
+	visible := make([]model.Snapshot, 0, len(snapshots))
 	usable := make([]model.Snapshot, 0, len(snapshots))
 
 	for _, snapshot := range snapshots {
+		if len(snapshot.Windows) > 0 || snapshot.Err != nil {
+			visible = append(visible, snapshot)
+		}
+
 		if len(snapshot.Windows) > 0 {
 			usable = append(usable, snapshot)
 		}
 	}
 
+	sort.Slice(visible, func(i, j int) bool { return visible[i].Provider < visible[j].Provider })
 	sort.Slice(usable, func(i, j int) bool { return usable[i].Provider < usable[j].Provider })
 
 	if len(usable) == 0 {
-		return Output{
-			Text:    Icon,
-			Tooltip: "No usage data available yet.",
-			Class:   "stale",
+		output := Output{Text: Icon, Tooltip: "No usage data available yet.", Class: "stale"}
+		if len(visible) > 0 {
+			output.Tooltip = tooltip(visible, model.Snapshot{}, model.Window{}, now)
+			output.Class = classForErrors(visible)
 		}
+
+		return output
 	}
 
 	selected := usable
@@ -78,7 +86,11 @@ func Build(snapshots []model.Snapshot, view View, now time.Time) Output {
 	}
 
 	class := classFor(maxPct)
-	if hasError(selected) {
+	if hasAuthError(visible) {
+		class += " auth-error"
+	}
+
+	if hasError(visible) {
 		class += " stale"
 	}
 
@@ -86,10 +98,19 @@ func Build(snapshots []model.Snapshot, view View, now time.Time) Output {
 
 	return Output{
 		Text:       Icon,
-		Tooltip:    tooltip(selected, chosenSnapshot, chosenWindow, now),
+		Tooltip:    tooltip(visible, chosenSnapshot, chosenWindow, now),
 		Class:      class,
 		Percentage: percentage,
 	}
+}
+
+func classForErrors(snapshots []model.Snapshot) string {
+	class := "stale"
+	if hasAuthError(snapshots) {
+		class += " auth-error"
+	}
+
+	return class
 }
 
 func chooseWindow(snapshots []model.Snapshot, index int) (model.Snapshot, model.Window) {
@@ -159,7 +180,12 @@ func tooltip(snapshots []model.Snapshot, chosen model.Snapshot, chosenWindow mod
 		}
 
 		if snapshot.Err != nil {
-			lines = append(lines, "  status: stale ("+snapshot.Err.Error()+")")
+			status := "stale"
+			if model.ErrorKindOf(snapshot.Err) == model.ErrorAuth {
+				status = "auth-error"
+			}
+
+			lines = append(lines, "  status: "+status+" ("+snapshot.Err.Error()+")")
 		}
 	}
 
@@ -187,9 +213,22 @@ func hasError(snapshots []model.Snapshot) bool {
 	return false
 }
 
+func hasAuthError(snapshots []model.Snapshot) bool {
+	for _, snapshot := range snapshots {
+		if model.ErrorKindOf(snapshot.Err) == model.ErrorAuth {
+			return true
+		}
+	}
+
+	return false
+}
+
 func providerLabel(provider string) string {
-	if provider == "codex" {
+	switch provider {
+	case "codex":
 		return "Codex"
+	case "claude":
+		return "Claude"
 	}
 
 	return provider

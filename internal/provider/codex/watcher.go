@@ -109,6 +109,10 @@ func (w *Watcher) Rescan(ctx context.Context, out chan<- model.Snapshot) {
 	w.emitScan(ctx, out)
 }
 
+func (w *Watcher) Refresh(ctx context.Context, out chan<- model.Snapshot) {
+	w.Rescan(ctx, out)
+}
+
 func (w *Watcher) emitScan(ctx context.Context, out chan<- model.Snapshot) {
 	now := w.Now()
 

@@ -1,6 +1,7 @@
 package render
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -34,6 +35,22 @@ func TestBuildShowsStaleWithLastGoodData(t *testing.T) {
 
 	if !strings.Contains(output.Tooltip, "status: stale") {
 		t.Fatalf("tooltip missing stale status: %s", output.Tooltip)
+	}
+}
+
+func TestBuildKeepsHealthyProviderVisibleWhenAnotherProviderNeedsAuth(t *testing.T) {
+	now := time.Now()
+	output := Build([]model.Snapshot{
+		{Provider: "claude", Err: model.NewProviderError(model.ErrorAuth, errors.New("claude access token is expired"))},
+		{Provider: "codex", FetchedAt: now, Windows: []model.Window{{Label: "weekly", UsedPct: 12}}},
+	}, View{}, now)
+
+	if output.Class != "ok auth-error stale" {
+		t.Fatalf("got class %q", output.Class)
+	}
+
+	if !strings.Contains(output.Tooltip, "Claude:") || !strings.Contains(output.Tooltip, "status: auth-error") || output.Percentage != 12 {
+		t.Fatalf("unexpected output: %#v", output)
 	}
 }
 

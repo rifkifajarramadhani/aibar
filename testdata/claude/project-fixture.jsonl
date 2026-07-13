@@ -1,0 +1,4 @@
+{"type":"user","message":{"role":"user","content":"redacted fixture prompt"}}
+{"type":"assistant","message":{"role":"assistant","usage":{"input_tokens":10,"output_tokens":20,"cache_creation_input_tokens":3,"cache_read_input_tokens":4}}}
+{"type":"assistant","message":{"role":"assistant","usage":{"input_tokens":2,"output_tokens":5}}}
+{"type":"assistant","message":{"role":"assistant","usage":{"input_tokens":7,"output_tokens":9,"cache_creation_input_tokens":1,"cache_read_input_tokens":2}}

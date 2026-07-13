@@ -11,17 +11,20 @@ import (
 
 	"github.com/overhaul/aibar/internal/control"
 	"github.com/overhaul/aibar/internal/model"
+	"github.com/overhaul/aibar/internal/provider/claude"
 	"github.com/overhaul/aibar/internal/provider/codex"
 	"github.com/overhaul/aibar/internal/render"
 	"github.com/overhaul/aibar/internal/state"
 )
 
 type Config struct {
-	CodexRoot string
-	StatePath string
-	CacheDir  string
-	Output    io.Writer
-	Now       func() time.Time
+	CodexRoot         string
+	ClaudeCredentials string
+	ClaudeProjects    string
+	StatePath         string
+	CacheDir          string
+	Output            io.Writer
+	Now               func() time.Time
 }
 
 func Run(ctx context.Context, cfg Config) error {
@@ -42,7 +45,14 @@ func Run(ctx context.Context, cfg Config) error {
 
 	snapshots := make(chan model.Snapshot, 16)
 	actions := make(chan string, 8)
-	watcher := codex.NewWatcher(cfg.CodexRoot)
+	codexWatcher := codex.NewWatcher(cfg.CodexRoot)
+	claudeWatcher := claude.New(claude.Config{
+		CredentialsPath: cfg.ClaudeCredentials,
+		ProjectsRoot:    cfg.ClaudeProjects,
+		Now:             cfg.Now,
+	})
+	watchers := []model.Provider{codexWatcher, claudeWatcher}
+	refreshables := []model.Refreshable{codexWatcher, claudeWatcher}
 
 	server, err := control.Listen(cfg.CacheDir, actions)
 	if err != nil {
@@ -60,7 +70,9 @@ func Run(ctx context.Context, cfg Config) error {
 	defer stopWatch()
 
 	go runControlServer(watchCtx, server)
-	go runWatcher(watchCtx, watcher, snapshots)
+	for _, watcher := range watchers {
+		go runWatcher(watchCtx, watcher, snapshots, cfg.Now)
+	}
 
 	usr1 := make(chan os.Signal, 1)
 	signal.Notify(usr1, syscall.SIGUSR1)
@@ -93,11 +105,11 @@ func Run(ctx context.Context, cfg Config) error {
 		case <-ticker.C:
 			emit()
 		case <-usr1:
-			watcher.Rescan(ctx, snapshots)
+			refreshSources(ctx, snapshots, refreshables)
 		case action := <-actions:
 			switch action {
 			case control.Refresh:
-				watcher.Rescan(ctx, snapshots)
+				refreshSources(ctx, snapshots, refreshables)
 			case control.CycleWindow:
 				view.WindowIndex++
 
@@ -126,12 +138,12 @@ func runControlServer(ctx context.Context, server *control.Server) {
 	}
 }
 
-func runWatcher(ctx context.Context, watcher *codex.Watcher, out chan<- model.Snapshot) {
+func runWatcher(ctx context.Context, watcher model.Provider, out chan<- model.Snapshot, now func() time.Time) {
 	for ctx.Err() == nil {
 		if err := watcher.Watch(ctx, out); err != nil && ctx.Err() == nil {
-			now := time.Now()
+			fetchedAt := now()
 			select {
-			case out <- model.Snapshot{Provider: watcher.Name(), Source: model.SourceLocal, FetchedAt: now, Err: err}:
+			case out <- model.Snapshot{Provider: watcher.Name(), Source: model.SourceLocal, FetchedAt: fetchedAt, Err: err}:
 			case <-ctx.Done():
 				return
 			}
@@ -148,5 +160,11 @@ func runWatcher(ctx context.Context, watcher *codex.Watcher, out chan<- model.Sn
 		}
 
 		return
+	}
+}
+
+func refreshSources(ctx context.Context, out chan<- model.Snapshot, sources []model.Refreshable) {
+	for _, source := range sources {
+		source.Refresh(ctx, out)
 	}
 }
