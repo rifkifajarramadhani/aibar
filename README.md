@@ -16,19 +16,31 @@ The daemon keeps stdout open and emits one Waybar JSON object per changed
 render. It reloads last-good data from `~/.cache/aibar/state.json` after a
 restart. Runtime control uses a private Unix socket under the same directory.
 
-Claude paths can be overridden for isolated testing:
+All runtime paths can be overridden, which is useful for pointing at fixtures
+or an isolated runtime during testing:
 
 ```sh
 aibar daemon \
+  --codex-root ~/.codex/sessions \
   --claude-credentials ~/.claude/.credentials.json \
-  --claude-projects ~/.claude/projects
+  --claude-projects ~/.claude/projects \
+  --state ~/.cache/aibar/state.json \
+  --cache-dir ~/.cache/aibar
 ```
 
+Paths default to the current user's home and XDG cache directories, so the
+plain `aibar daemon` needs no flags in a normal installation.
+
+The control subcommands connect to the running daemon over the Unix socket
+(`~/.cache/aibar/aibar.sock`, mode `0600`), which also enforces a single
+instance — a live socket makes a second daemon exit with "daemon already
+running":
+
 ```sh
-aibar refresh
-aibar next-provider
-aibar prev-provider
-aibar cycle-window
+aibar refresh        # rescan all sources now (also triggered by SIGUSR1)
+aibar next-provider  # pin the next provider in the tooltip order
+aibar prev-provider  # pin the previous provider
+aibar cycle-window   # cycle the visible window for the current view
 ```
 
 The initial view shows the most constrained available window across providers.
@@ -137,6 +149,42 @@ Local Claude JSONL token usage is used only to request a refresh; token counts
 are not converted into an estimated quota percentage. Optional `Stop` and
 `SessionEnd` hook configuration is documented in
 [`docs/claude-hooks.md`](docs/claude-hooks.md).
+
+## Architecture
+
+aibar follows a domain-first Clean Architecture (full spec in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)). The core — `internal/usage`
+(shared contracts and the merge policy) and `internal/daemon` (the central
+select loop) — depends only on the standard library. Everything that touches
+the outside world is an adapter under `internal/adapter/` implementing a
+core-owned port:
+
+- `adapter/codex` — fsnotify watcher and parser for local Codex sessions.
+- `adapter/claude` — OAuth usage polling plus a local-file watcher for refresh
+  triggers.
+- `adapter/waybar` — the `Renderer` port; formats the Waybar line and tooltip.
+- `adapter/control` — the `ControlServer` port; the Unix-socket control plane.
+- `adapter/statefile` — the `SnapshotArchive` port; atomic `state.json` writes.
+
+`internal/bootstrap` wires the adapters into the daemon. A single goroutine per
+source feeds `usage.Store.Apply`, and a 1-second ticker re-renders without any
+I/O so reset countdowns advance while the render path stays free of file and
+network work. `depguard` (in `.golangci.yml`) fails the lint if the core
+imports an adapter, bootstrap, or config package.
+
+## Development
+
+```sh
+make check                 # fmt + lint + test (the pre-submit gate)
+go test ./...              # all package tests
+go test -race ./...        # race detector for concurrent changes
+golangci-lint run ./...    # depguard, errcheck, staticcheck, and friends
+```
+
+Each provider keeps all of its parsing and file-watching inside its own adapter
+package, and any new provider format ships with a JSONL fixture under
+`testdata/<provider>/` and a parser test. See
+[`CLAUDE.md`](CLAUDE.md) and [`AGENTS.md`](AGENTS.md) for the full conventions.
 
 ## Security and roadmap
 
