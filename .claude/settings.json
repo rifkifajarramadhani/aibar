@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make fmt *)",
+      "Bash(make vet *)",
+      "Bash(make test *)",
+      "Bash(make lint *)",
+      "Bash(gofmt -w internal/adapter/http/dto/product/product_search_response.go)",
+      "Bash(ls /home/overhaul/.claude/plugins/cache/claude-plugins-official/superpowers/6.0.3/skills/subagent-driven-development/scripts/)",
+      "Read(//home/overhaul/.claude/plugins/cache/claude-plugins-official/superpowers/6.0.3/skills/subagent-driven-development/scripts/**)",
+      "Bash(make build *)"
+    ]
+  }
+}

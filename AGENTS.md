@@ -2,21 +2,28 @@
 
 ## Project Structure & Module Organization
 
-`aibar` is a Go module that emits Waybar-compatible JSON for AI usage limits.
-The CLI entrypoint is in `cmd/aibar/main.go`. Core packages are under
-`internal/`: `daemon` coordinates runtime behavior, `provider/codex` watches
-and parses Codex rollout files, `state` persists last-good data, `render`
-formats Waybar output, and `control` handles the private Unix socket. Put
-integration fixtures in `testdata/` (currently `testdata/codex/`), documentation
-in `docs/`, and Waybar assets/snippets in `assets/` or the repository root.
+`aibar` is a Go module that emits Waybar-compatible JSON for AI usage limits. It
+follows domain-first Clean Architecture (see `docs/ARCHITECTURE.md`). The CLI
+entrypoint is in `cmd/aibar/main.go`. The core domain is `internal/usage`
+(entities, the `Store` merge policy, the `View`, and the `Provider`/`Refreshable`/
+`SnapshotArchive` ports); the application loop is `internal/daemon` (which owns the
+`Renderer`/`ControlServer` ports and the control-command vocabulary). Adapters
+live under `internal/adapter/`: `codex` and `claude` (providers), `waybar`
+(presentation), `control` (Unix socket), `statefile` (state.json persistence),
+and `logging`. `internal/config` resolves paths and `internal/bootstrap` wires
+the adapters into the daemon. Core packages must not import adapters, bootstrap,
+or config — `depguard` enforces this. Put integration fixtures in `testdata/`
+(currently `testdata/codex/` and `testdata/claude/`), documentation in `docs/`,
+and Waybar assets/snippets in `assets/` or the repository root.
 
 ## Build, Test, and Development Commands
 
 ```sh
+make check                           # fmt + lint + test (pre-submit gate)
 go test ./...                         # run all package tests
 go test -race ./...                  # check concurrent code for races
 go vet ./...                         # run Go static checks
-golangci-lint run ./...              # run repository linters
+golangci-lint run ./...              # run repository linters (includes depguard)
 gofmt -w ./cmd ./internal            # format Go sources
 wsl -fix ./cmd/... ./internal/...    # apply logical-step blank-line spacing
 go build -trimpath ./cmd/aibar       # build the daemon binary
@@ -32,9 +39,10 @@ or isolated-runtime testing straightforward.
 Use standard Go formatting (`gofmt`) and idiomatic Go names: exported names
 need useful GoDoc where appropriate, while package-private helpers use
 camelCase. Keep provider-specific parsing and file-watching logic inside its
-provider package; preserve the model, snapshot, and renderer contracts when
-adding providers. Prefer small, error-returning functions and restrictive
-permissions for runtime files.
+adapter package under `internal/adapter/`; preserve the `usage` domain,
+snapshot, and renderer contracts when adding providers, and define new ports in
+the package that consumes them. Prefer small, error-returning functions and
+restrictive permissions for runtime files.
 
 Separate logical steps with blank lines (`wsl` / `wsl_5` style): group related
 assignments together, then leave a blank line before the next guard clause,
@@ -43,14 +51,14 @@ I/O call, state transition, or return. Example:
 ```go
 file, err := os.Open(path)
 if err != nil {
-	return model.Snapshot{}, err
+	return usage.Snapshot{}, err
 }
 
 defer func() { _ = file.Close() }()
 
 snapshot, err := Parse(file, now)
 if err != nil {
-	return model.Snapshot{}, fmt.Errorf("parse %s: %w", path, err)
+	return usage.Snapshot{}, fmt.Errorf("parse %s: %w", path, err)
 }
 
 snapshot.Provider = "codex"

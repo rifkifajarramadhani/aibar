@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
+	"strings"
 	"syscall"
+	"time"
 
-	"github.com/overhaul/aibar/internal/control"
+	"github.com/overhaul/aibar/internal/adapter/control"
+	"github.com/overhaul/aibar/internal/adapter/logging"
+	"github.com/overhaul/aibar/internal/bootstrap"
+	"github.com/overhaul/aibar/internal/config"
 	"github.com/overhaul/aibar/internal/daemon"
 )
 
@@ -19,38 +23,18 @@ func main() {
 		os.Exit(2)
 	}
 
-	home, err := os.UserHomeDir()
+	cfg, err := config.Load()
 	if err != nil {
 		fatal(err)
 	}
 
-	defaults := defaultsFor(home)
-
 	switch os.Args[1] {
 	case "daemon":
-		fs := flag.NewFlagSet("daemon", flag.ExitOnError)
-		codexRoot := fs.String("codex-root", defaults.codexRoot, "Codex sessions directory")
-		claudeCredentials := fs.String("claude-credentials", defaults.claudeCredentials, "Claude Code credentials file")
-		claudeProjects := fs.String("claude-projects", defaults.claudeProjects, "Claude Code projects directory")
-		statePath := fs.String("state", defaults.statePath, "last-good state file")
-		cacheDir := fs.String("cache-dir", defaults.cacheDir, "aibar runtime directory")
-		_ = fs.Parse(os.Args[2:])
-
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-
-		if err := daemon.Run(ctx, daemon.Config{
-			CodexRoot:         *codexRoot,
-			ClaudeCredentials: *claudeCredentials,
-			ClaudeProjects:    *claudeProjects,
-			StatePath:         *statePath,
-			CacheDir:          *cacheDir,
-			Output:            os.Stdout,
-		}); err != nil {
+		if err := runDaemon(cfg); err != nil {
 			fatal(err)
 		}
-	case "refresh", "next-provider", "prev-provider", "cycle-window":
-		if err := control.Send(defaults.cacheDir, os.Args[1]); err != nil {
+	case daemon.Refresh, daemon.NextProvider, daemon.PrevProvider, daemon.CycleWindow:
+		if err := control.Send(cfg.CacheDir, os.Args[1]); err != nil {
 			fatal(err)
 		}
 	default:
@@ -59,33 +43,36 @@ func main() {
 	}
 }
 
-type defaultPaths struct {
-	codexRoot         string
-	claudeCredentials string
-	claudeProjects    string
-	statePath         string
-	cacheDir          string
-}
+func runDaemon(cfg config.Config) error {
+	fs := flag.NewFlagSet("daemon", flag.ExitOnError)
+	codexRoot := fs.String("codex-root", cfg.CodexRoot, "Codex sessions directory")
+	claudeCredentials := fs.String("claude-credentials", cfg.ClaudeCredentials, "Claude Code credentials file")
+	claudeProjects := fs.String("claude-projects", cfg.ClaudeProjects, "Claude Code projects directory")
+	statePath := fs.String("state", cfg.StatePath, "last-good state file")
+	cacheDir := fs.String("cache-dir", cfg.CacheDir, "aibar runtime directory")
+	_ = fs.Parse(os.Args[2:])
 
-func defaultsFor(home string) defaultPaths {
-	cacheDir := os.Getenv("XDG_CACHE_HOME")
-	if cacheDir == "" {
-		cacheDir = filepath.Join(home, ".cache")
+	cfg.CodexRoot = *codexRoot
+	cfg.ClaudeCredentials = *claudeCredentials
+	cfg.ClaudeProjects = *claudeProjects
+	cfg.StatePath = *statePath
+	cfg.CacheDir = *cacheDir
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	logger := logging.New()
+
+	app, err := bootstrap.WireDaemon(cfg, os.Stdout, logger, time.Now)
+	if err != nil {
+		return err
 	}
 
-	cacheDir = filepath.Join(cacheDir, "aibar")
-
-	return defaultPaths{
-		codexRoot:         filepath.Join(home, ".codex", "sessions"),
-		claudeCredentials: filepath.Join(home, ".claude", ".credentials.json"),
-		claudeProjects:    filepath.Join(home, ".claude", "projects"),
-		statePath:         filepath.Join(cacheDir, "state.json"),
-		cacheDir:          cacheDir,
-	}
+	return app.Run(ctx)
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: aibar {daemon|refresh|next-provider|prev-provider|cycle-window}")
+	fmt.Fprintln(os.Stderr, "usage: aibar {daemon|"+strings.Join(daemon.Commands(), "|")+"}")
 }
 
 func fatal(err error) {
