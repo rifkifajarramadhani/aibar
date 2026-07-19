@@ -1,77 +1,92 @@
+// Package daemon is the application service: it owns the central select loop
+// that merges provider snapshots, renders the Waybar line, and handles control
+// commands. It depends only on core ports (Provider, Renderer, ControlServer),
+// which the bootstrap layer satisfies with concrete adapters.
 package daemon
 
 import (
 	"context"
-	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/overhaul/aibar/internal/control"
-	"github.com/overhaul/aibar/internal/model"
-	"github.com/overhaul/aibar/internal/provider/claude"
-	"github.com/overhaul/aibar/internal/provider/codex"
-	"github.com/overhaul/aibar/internal/render"
-	"github.com/overhaul/aibar/internal/state"
+	"github.com/overhaul/aibar/internal/usage"
 )
 
-type Config struct {
-	CodexRoot         string
-	ClaudeCredentials string
-	ClaudeProjects    string
-	StatePath         string
-	CacheDir          string
-	Output            io.Writer
-	Now               func() time.Time
+// Deps are the collaborators the bootstrap layer wires into the daemon.
+type Deps struct {
+	Store        *usage.Store
+	Providers    []usage.Provider
+	Refreshables []usage.Refreshable
+	Renderer     Renderer
+	Control      ControlServer
+	Actions      <-chan string
+	Output       io.Writer
+	Now          func() time.Time
+	Logger       *slog.Logger
 }
 
-func Run(ctx context.Context, cfg Config) error {
-	if cfg.Now == nil {
-		cfg.Now = time.Now
+// Daemon coordinates the watchers, store, renderer, and control plane.
+type Daemon struct {
+	store        *usage.Store
+	providers    []usage.Provider
+	refreshables []usage.Refreshable
+	renderer     Renderer
+	control      ControlServer
+	actions      <-chan string
+	output       io.Writer
+	now          func() time.Time
+	logger       *slog.Logger
+}
+
+func New(deps Deps) *Daemon {
+	if deps.Now == nil {
+		deps.Now = time.Now
 	}
 
-	if cfg.Output == nil {
-		cfg.Output = os.Stdout
+	if deps.Output == nil {
+		deps.Output = os.Stdout
 	}
 
-	store := state.New()
-	if err := store.Load(cfg.StatePath); err != nil {
-		fmt.Fprintf(os.Stderr, "aibar: load state: %v\n", err)
+	if deps.Logger == nil {
+		deps.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 
-	view := render.View{}
+	return &Daemon{
+		store:        deps.Store,
+		providers:    deps.Providers,
+		refreshables: deps.Refreshables,
+		renderer:     deps.Renderer,
+		control:      deps.Control,
+		actions:      deps.Actions,
+		output:       deps.Output,
+		now:          deps.Now,
+		logger:       deps.Logger,
+	}
+}
 
-	snapshots := make(chan model.Snapshot, 16)
-	actions := make(chan string, 8)
-	codexWatcher := codex.NewWatcher(cfg.CodexRoot)
-	claudeWatcher := claude.New(claude.Config{
-		CredentialsPath: cfg.ClaudeCredentials,
-		ProjectsRoot:    cfg.ClaudeProjects,
-		Now:             cfg.Now,
-	})
-	watchers := []model.Provider{codexWatcher, claudeWatcher}
-	refreshables := []model.Refreshable{codexWatcher, claudeWatcher}
-
-	server, err := control.Listen(cfg.CacheDir, actions)
-	if err != nil {
-		return err
+// Run drives the daemon until ctx is cancelled.
+func (d *Daemon) Run(ctx context.Context) error {
+	if err := d.store.Load(); err != nil {
+		d.logger.Error("load state", "error", err)
 	}
 
-	if err := control.WritePID(control.PIDPath(cfg.CacheDir)); err != nil {
-		_ = server.Close()
-		return err
-	}
+	view := usage.View{}
 
-	defer control.RemoveRuntimeFiles(cfg.CacheDir)
+	snapshots := make(chan usage.Snapshot, 16)
+
+	defer func() { _ = d.control.Close() }()
 
 	watchCtx, stopWatch := context.WithCancel(ctx)
 	defer stopWatch()
 
-	go runControlServer(watchCtx, server)
-	for _, watcher := range watchers {
-		go runWatcher(watchCtx, watcher, snapshots, cfg.Now)
+	go d.runControlServer(watchCtx)
+
+	for _, provider := range d.providers {
+		go d.runWatcher(watchCtx, provider, snapshots)
 	}
 
 	usr1 := make(chan os.Signal, 1)
@@ -80,7 +95,7 @@ func Run(ctx context.Context, cfg Config) error {
 
 	lastOutput := ""
 	emit := func() {
-		data, renderErr := render.JSON(store.All(), view, cfg.Now())
+		data, renderErr := d.renderer.Render(d.store.All(), view, d.now())
 		if renderErr != nil {
 			return
 		}
@@ -91,7 +106,7 @@ func Run(ctx context.Context, cfg Config) error {
 		}
 
 		lastOutput = line
-		_, _ = fmt.Fprintln(cfg.Output, line)
+		_, _ = d.write(line)
 	}
 	emit()
 
@@ -105,28 +120,28 @@ func Run(ctx context.Context, cfg Config) error {
 		case <-ticker.C:
 			emit()
 		case <-usr1:
-			refreshSources(ctx, snapshots, refreshables)
-		case action := <-actions:
+			d.refreshSources(ctx, snapshots)
+		case action := <-d.actions:
 			switch action {
-			case control.Refresh:
-				refreshSources(ctx, snapshots, refreshables)
-			case control.CycleWindow:
-				view = render.CycleWindow(view)
+			case Refresh:
+				d.refreshSources(ctx, snapshots)
+			case CycleWindow:
+				view = d.renderer.CycleWindow(view)
 
 				emit()
-			case control.NextProvider:
-				view = render.NavigateProvider(store.All(), view, 1)
+			case NextProvider:
+				view = d.renderer.NavigateProvider(d.store.All(), view, 1)
 
 				emit()
-			case control.PrevProvider:
-				view = render.NavigateProvider(store.All(), view, -1)
+			case PrevProvider:
+				view = d.renderer.NavigateProvider(d.store.All(), view, -1)
 
 				emit()
 			}
 		case snapshot := <-snapshots:
-			if store.Apply(snapshot) && snapshot.Err == nil && snapshot.Good() {
-				if err := store.Save(cfg.StatePath); err != nil {
-					fmt.Fprintf(os.Stderr, "aibar: save state: %v\n", err)
+			if d.store.Apply(snapshot) && snapshot.Err == nil && snapshot.Good() {
+				if err := d.store.Save(); err != nil {
+					d.logger.Error("save state", "error", err)
 				}
 			}
 
@@ -135,18 +150,22 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 }
 
-func runControlServer(ctx context.Context, server *control.Server) {
-	if err := server.Run(ctx); err != nil && ctx.Err() == nil {
-		fmt.Fprintf(os.Stderr, "aibar: control server: %v\n", err)
+func (d *Daemon) write(line string) (int, error) {
+	return io.WriteString(d.output, line+"\n")
+}
+
+func (d *Daemon) runControlServer(ctx context.Context) {
+	if err := d.control.Run(ctx); err != nil && ctx.Err() == nil {
+		d.logger.Error("control server", "error", err)
 	}
 }
 
-func runWatcher(ctx context.Context, watcher model.Provider, out chan<- model.Snapshot, now func() time.Time) {
+func (d *Daemon) runWatcher(ctx context.Context, watcher usage.Provider, out chan<- usage.Snapshot) {
 	for ctx.Err() == nil {
 		if err := watcher.Watch(ctx, out); err != nil && ctx.Err() == nil {
-			fetchedAt := now()
+			fetchedAt := d.now()
 			select {
-			case out <- model.Snapshot{Provider: watcher.Name(), Source: model.SourceLocal, FetchedAt: fetchedAt, Err: err}:
+			case out <- usage.Snapshot{Provider: watcher.Name(), Source: usage.SourceLocal, FetchedAt: fetchedAt, Err: err}:
 			case <-ctx.Done():
 				return
 			}
@@ -166,8 +185,8 @@ func runWatcher(ctx context.Context, watcher model.Provider, out chan<- model.Sn
 	}
 }
 
-func refreshSources(ctx context.Context, out chan<- model.Snapshot, sources []model.Refreshable) {
-	for _, source := range sources {
+func (d *Daemon) refreshSources(ctx context.Context, out chan<- usage.Snapshot) {
+	for _, source := range d.refreshables {
 		source.Refresh(ctx, out)
 	}
 }

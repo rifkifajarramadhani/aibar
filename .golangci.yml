@@ -1,0 +1,43 @@
+version: "2"
+
+run:
+  timeout: 5m
+  relative-path-mode: gomod
+  tests: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+linters:
+  default: none
+  enable:
+    - depguard
+    - errcheck
+    - errorlint
+    - govet
+    - ineffassign
+    - revive
+    - staticcheck
+    - unused
+  settings:
+    depguard:
+      rules:
+        core:
+          files:
+            - internal/usage/**/*.go
+            - internal/daemon/**/*.go
+          deny:
+            - pkg: github.com/overhaul/aibar/internal/adapter
+              desc: core packages must not import adapters
+            - pkg: github.com/overhaul/aibar/internal/bootstrap
+              desc: core packages must not import bootstrap wiring
+            - pkg: github.com/overhaul/aibar/internal/config
+              desc: core packages must not import application configuration
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
