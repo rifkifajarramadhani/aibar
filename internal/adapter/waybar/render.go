@@ -138,6 +138,7 @@ func NavigateProvider(snapshots []usage.Snapshot, view usage.View, direction int
 	}
 
 	visible, _ := snapshotsForRender(snapshots)
+
 	providers := make([]string, 0, len(visible))
 	for _, snapshot := range visible {
 		providers = append(providers, snapshot.Provider)
@@ -150,6 +151,7 @@ func NavigateProvider(snapshots []usage.Snapshot, view usage.View, direction int
 	}
 
 	current := -1
+
 	if view.PinnedProvider != "" {
 		for index, provider := range providers {
 			if provider == view.PinnedProvider {
@@ -182,6 +184,7 @@ func NavigateProvider(snapshots []usage.Snapshot, view usage.View, direction int
 	}
 
 	view.PinnedProvider = providers[next]
+
 	return view
 }
 
@@ -261,7 +264,15 @@ func moreConstrained(snapshot usage.Snapshot, window usage.Window, chosenSnapsho
 	return window.Label < chosen.Label
 }
 
-const usageBarWidth = 20
+const (
+	usageBarWidth = 20
+	usageBarFull  = '█'
+	usageBarTrack = '░'
+)
+
+// usageBarPartials indexes eighth-width block glyphs by eighths filled (1..7),
+// letting the final cell advance in sub-cell steps for a smoother bar.
+var usageBarPartials = []rune{'▏', '▎', '▍', '▌', '▋', '▊', '▉'}
 
 func tooltip(snapshots []usage.Snapshot, now time.Time) string {
 	lines := make([]string, 0, len(snapshots)*6)
@@ -310,9 +321,33 @@ func usageLabel(label string) string {
 
 func usageBar(pct float64) string {
 	pct = normalizedPercentage(pct)
-	filled := int(math.Ceil(pct / 100 * usageBarWidth))
+	exact := pct / 100 * usageBarWidth
+	full := int(exact)
+	eighths := int(math.Round((exact - float64(full)) * 8))
 
-	return strings.Repeat("#", filled) + strings.Repeat("-", usageBarWidth-filled)
+	if eighths == 8 {
+		full++
+		eighths = 0
+	}
+
+	var b strings.Builder
+	b.Grow(usageBarWidth * 3)
+
+	for i := 0; i < full; i++ {
+		b.WriteRune(usageBarFull)
+	}
+
+	if eighths > 0 && full < usageBarWidth {
+		b.WriteRune(usageBarPartials[eighths-1])
+
+		full++
+	}
+
+	for i := full; i < usageBarWidth; i++ {
+		b.WriteRune(usageBarTrack)
+	}
+
+	return b.String()
 }
 
 func wholePercentage(pct float64) float64 {

@@ -60,6 +60,7 @@ func (s *Store) Apply(snapshot Snapshot) bool {
 func (s *Store) Snapshot(provider string) (Snapshot, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	snapshot, ok := s.current[provider]
 
 	return snapshot.Clone(), ok
@@ -120,6 +121,7 @@ func (s *Store) Save() error {
 			good = append(good, snapshot.Clone())
 		}
 	}
+
 	s.mu.RUnlock()
 
 	return s.archive.Save(good)

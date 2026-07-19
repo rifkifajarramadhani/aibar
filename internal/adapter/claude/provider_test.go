@@ -16,6 +16,7 @@ import (
 
 func TestFetchParsesUsageAndSendsOAuthHeaders(t *testing.T) {
 	path := writeCredentials(t, `{"claudeAiOauth":{"accessToken":"test-token"}}`)
+
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if got := request.Header.Get("Authorization"); got != "Bearer test-token" {
 			t.Errorf("authorization header = %q", got)
@@ -31,6 +32,7 @@ func TestFetchParsesUsageAndSendsOAuthHeaders(t *testing.T) {
 	defer server.Close()
 
 	provider := New(Config{CredentialsPath: path, Endpoint: server.URL, HTTPClient: server.Client()})
+
 	snapshot, err := provider.Fetch(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -56,6 +58,7 @@ func TestFetchClassifiesAuthAndRateLimitErrorsWithoutResponseBody(t *testing.T) 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			path := writeCredentials(t, `{"claudeAiOauth":{"accessToken":"test-token"}}`)
+
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 				if test.retryAfter != "" {
 					writer.Header().Set("Retry-After", test.retryAfter)
@@ -67,6 +70,7 @@ func TestFetchClassifiesAuthAndRateLimitErrorsWithoutResponseBody(t *testing.T) 
 			defer server.Close()
 
 			provider := New(Config{CredentialsPath: path, Endpoint: server.URL, HTTPClient: server.Client()})
+
 			snapshot, err := provider.Fetch(context.Background())
 			if usage.ErrorKindOf(err) != test.kind || usage.ErrorKindOf(snapshot.Err) != test.kind {
 				t.Fatalf("err=%v snapshot=%v, want %s", err, snapshot.Err, test.kind)
@@ -94,6 +98,7 @@ func TestFetchClassifiesServerAndParseErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			path := writeCredentials(t, `{"claudeAiOauth":{"accessToken":"test-token"}}`)
+
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 				writer.WriteHeader(test.status)
 				_, _ = writer.Write([]byte(test.body))
@@ -101,6 +106,7 @@ func TestFetchClassifiesServerAndParseErrors(t *testing.T) {
 			defer server.Close()
 
 			provider := New(Config{CredentialsPath: path, Endpoint: server.URL, HTTPClient: server.Client()})
+
 			snapshot, err := provider.Fetch(context.Background())
 			if usage.ErrorKindOf(err) != test.kind || usage.ErrorKindOf(snapshot.Err) != test.kind {
 				t.Fatalf("err=%v snapshot=%v, want %s", err, snapshot.Err, test.kind)
@@ -133,7 +139,9 @@ func TestNextDelayEnforcesMinimumAndBacksOffTransientFailures(t *testing.T) {
 
 func TestFetchHonorsCanceledContext(t *testing.T) {
 	path := writeCredentials(t, `{"claudeAiOauth":{"accessToken":"test-token"}}`)
+
 	var requests atomic.Int32
+
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		requests.Add(1)
 		<-request.Context().Done()
@@ -152,6 +160,7 @@ func TestFetchHonorsCanceledContext(t *testing.T) {
 
 func TestFetchHonorsHTTPTimeout(t *testing.T) {
 	path := writeCredentials(t, `{"claudeAiOauth":{"accessToken":"test-token"}}`)
+
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		select {
 		case <-time.After(200 * time.Millisecond):

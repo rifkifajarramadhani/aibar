@@ -49,6 +49,7 @@ func TestWatcherEmitsInitialFixtureSnapshot(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for fixture snapshot")
 	}
+
 	cancel()
 }
 
@@ -85,6 +86,7 @@ func TestWatcherResolvesNewerRolloutAfterRotation(t *testing.T) {
 	errCh := make(chan error, 1)
 
 	go func() { errCh <- watcher.Watch(ctx, out) }()
+
 	select {
 	case <-out:
 	case err := <-errCh:
@@ -95,6 +97,7 @@ func TestWatcherResolvesNewerRolloutAfterRotation(t *testing.T) {
 
 	newer := filepath.Join(day, "rollout-new.jsonl")
 	writeRollout(newer, 88)
+
 	select {
 	case snapshot := <-out:
 		if len(snapshot.Windows) == 0 || snapshot.Windows[0].UsedPct != 88 {

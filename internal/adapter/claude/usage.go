@@ -54,6 +54,7 @@ func ParseUsage(reader io.Reader, now time.Time) (usage.Snapshot, error) {
 	}
 
 	windows := make([]usage.Window, 0, 2)
+
 	for _, candidate := range []struct {
 		keys          []string
 		label         string
@@ -63,6 +64,7 @@ func ParseUsage(reader io.Reader, now time.Time) (usage.Snapshot, error) {
 		{keys: []string{"seven_day", "weekly"}, label: "weekly", windowMinutes: weeklyMinutes},
 	} {
 		var raw json.RawMessage
+
 		for _, key := range candidate.keys {
 			if value, ok := root[key]; ok {
 				raw = value
@@ -124,8 +126,10 @@ func parseResetTime(raw json.RawMessage) time.Time {
 	}
 
 	var number json.Number
+
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
+
 	if decoder.Decode(&number) == nil {
 		value, err := strconv.ParseInt(number.String(), 10, 64)
 		if err == nil {
@@ -166,6 +170,7 @@ func (u UsageTotals) HasUsage() bool {
 func ParseProjectUsage(reader io.Reader) (UsageTotals, error) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 64*1024), 8*1024*1024)
+
 	var totals UsageTotals
 
 	for scanner.Scan() {

@@ -128,6 +128,7 @@ func (w *Watcher) emitScan(ctx context.Context, out chan<- usage.Snapshot) {
 		snapshot.FetchedAt = now
 		snapshot.Err = err
 	}
+
 	select {
 	case out <- snapshot:
 	case <-ctx.Done():

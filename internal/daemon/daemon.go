@@ -90,6 +90,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 
 	usr1 := make(chan os.Signal, 1)
+
 	signal.Notify(usr1, syscall.SIGUSR1)
 	defer signal.Stop(usr1)
 

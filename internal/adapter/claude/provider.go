@@ -71,6 +71,7 @@ func (p *Provider) MinInterval() time.Duration { return MinNetworkInterval }
 
 func (p *Provider) Fetch(ctx context.Context) (usage.Snapshot, error) {
 	now := p.config.Now()
+
 	credentials, err := LoadCredentials(p.config.CredentialsPath, now)
 	if err != nil {
 		return usage.Snapshot{Provider: p.Name(), Source: usage.SourceNetwork, FetchedAt: now, Err: err}, err
@@ -97,6 +98,7 @@ func (p *Provider) Fetch(ctx context.Context) (usage.Snapshot, error) {
 		}
 
 		classified := usage.NewProviderError(usage.ErrorNetwork, &httpFailure{err: errors.New(message), cause: err})
+
 		return usage.Snapshot{Provider: p.Name(), Source: usage.SourceNetwork, FetchedAt: now, Err: classified}, classified
 	}
 
@@ -110,6 +112,7 @@ func (p *Provider) Fetch(ctx context.Context) (usage.Snapshot, error) {
 	if response.StatusCode == http.StatusTooManyRequests {
 		retryAfter := parseRetryAfter(response.Header.Get("Retry-After"), now)
 		err = usage.NewProviderError(usage.ErrorRateLimit, &httpFailure{status: response.StatusCode, retryAfter: retryAfter, err: errors.New("claude usage request was rate limited")})
+
 		return usage.Snapshot{Provider: p.Name(), Source: usage.SourceNetwork, FetchedAt: now, Err: err}, err
 	}
 
@@ -120,6 +123,7 @@ func (p *Provider) Fetch(ctx context.Context) (usage.Snapshot, error) {
 		}
 
 		err = usage.NewProviderError(kind, &httpFailure{status: response.StatusCode, err: fmt.Errorf("claude usage request returned HTTP %d", response.StatusCode)})
+
 		return usage.Snapshot{Provider: p.Name(), Source: usage.SourceNetwork, FetchedAt: now, Err: err}, err
 	}
 
@@ -243,6 +247,7 @@ func pathExists(path string) bool {
 	}
 
 	_, err := os.Stat(path)
+
 	return err == nil
 }
 

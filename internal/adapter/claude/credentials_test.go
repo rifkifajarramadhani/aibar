@@ -46,6 +46,7 @@ func TestLoadCredentialsRejectsMalformedAndMissingToken(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			path := writeCredentials(t, test.data)
+
 			_, err := LoadCredentials(path, time.Now())
 			if usage.ErrorKindOf(err) != usage.ErrorAuth {
 				t.Fatalf("got %v, want auth error", err)

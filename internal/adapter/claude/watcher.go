@@ -42,11 +42,17 @@ func (p *Provider) Watch(ctx context.Context, out chan<- usage.Snapshot) error {
 	}
 
 	dirtyPaths := make(map[string]struct{})
-	var debounceTimer *time.Timer
-	var debounceC <-chan time.Time
 
-	var pollTimer *time.Timer
-	var pollC <-chan time.Time
+	var (
+		debounceTimer *time.Timer
+		debounceC     <-chan time.Time
+	)
+
+	var (
+		pollTimer *time.Timer
+		pollC     <-chan time.Time
+	)
+
 	nextAllowed := time.Time{}
 	pending := false
 
@@ -107,6 +113,7 @@ func (p *Provider) Watch(ctx context.Context, out chan<- usage.Snapshot) error {
 		now := p.config.Now()
 		nextAllowed = now.Add(p.nextDelay(fetchErr))
 		resetPoll(nextAllowed)
+
 		pending = false
 	}
 
@@ -130,6 +137,7 @@ func (p *Provider) Watch(ctx context.Context, out chan<- usage.Snapshot) error {
 			return nil
 		case <-p.trigger:
 			pending = true
+
 			if nextAllowed.IsZero() || !p.config.Now().Before(nextAllowed) {
 				attemptFetch()
 			}
@@ -142,11 +150,13 @@ func (p *Provider) Watch(ctx context.Context, out chan<- usage.Snapshot) error {
 			attemptFetch()
 		case <-debounceC:
 			debounceC = nil
+
 			if usageChanged(dirtyPaths, usageStates) {
 				pending = true
 			}
 
 			dirtyPaths = make(map[string]struct{})
+
 			if pending && (nextAllowed.IsZero() || !p.config.Now().Before(nextAllowed)) {
 				attemptFetch()
 			}
@@ -169,11 +179,13 @@ func (p *Provider) Watch(ctx context.Context, out chan<- usage.Snapshot) error {
 				}
 
 				dirtyPaths[event.Name] = struct{}{}
+
 				resetDebounce()
 			}
 
 			if relevantCredentialEvent(event, p.config.CredentialsPath) {
 				pending = true
+
 				if nextAllowed.IsZero() || !p.config.Now().Before(nextAllowed) {
 					attemptFetch()
 				}
@@ -225,6 +237,7 @@ func usageChanged(paths map[string]struct{}, states map[string]fileUsageState) b
 			}
 
 			delete(states, path)
+
 			continue
 		}
 
@@ -294,6 +307,7 @@ func addDirectoryTree(watcher *fsnotify.Watcher, watched map[string]bool, root s
 		}
 
 		watched[path] = true
+
 		return nil
 	})
 	if err != nil {

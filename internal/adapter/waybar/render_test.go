@@ -71,6 +71,7 @@ func TestBuildAggregatesProvidersInStableOrder(t *testing.T) {
 	}
 
 	claudeIndex := strings.Index(output.Tooltip, "Claude")
+
 	codexIndex := strings.Index(output.Tooltip, "Codex")
 	if claudeIndex == -1 || codexIndex == -1 || claudeIndex > codexIndex {
 		t.Fatalf("providers are not stably ordered: %s", output.Tooltip)
@@ -85,6 +86,7 @@ func TestNavigateProviderUsesAggregateBoundaries(t *testing.T) {
 	}
 
 	view := usage.View{WindowIndex: 4}
+
 	view = NavigateProvider(snapshots, view, 1)
 	if view.PinnedProvider != "claude" || view.WindowIndex != 0 {
 		t.Fatalf("next from aggregate got %#v", view)
@@ -137,6 +139,7 @@ func TestCycleWindowPreservesAutomaticIndexAndWraps(t *testing.T) {
 	}
 
 	view = CycleWindow(view)
+
 	view = CycleWindow(view)
 	if view.WindowIndex != 3 {
 		t.Fatalf("cycles did not advance: %d", view.WindowIndex)
@@ -147,6 +150,7 @@ func TestCycleWindowPreservesAutomaticIndexAndWraps(t *testing.T) {
 		{Label: "weekly", UsedPct: 20},
 		{Label: "5h", UsedPct: 80},
 	}}}
+
 	output := Build(snapshots, usage.View{WindowIndex: view.WindowIndex}, now)
 	if output.Percentage != 80 {
 		t.Fatalf("window cycle did not wrap: %#v", output)
@@ -201,18 +205,18 @@ func TestTooltipRendersAllProvidersAndWindows(t *testing.T) {
 	want := strings.Join([]string{
 		"Claude",
 		"• Rolling Usage:",
-		"  [#-------------------]    2%",
+		"  [▍░░░░░░░░░░░░░░░░░░░]    2%",
 		"  Resets in 4h 55m",
 		"• Weekly Usage:",
-		"  [#####---------------]   24%",
+		"  [████▊░░░░░░░░░░░░░░░]   24%",
 		"  Resets in 3d 16h",
 		"",
 		"Codex",
 		"• Rolling Usage:",
-		"  [#-------------------]    3%",
+		"  [▋░░░░░░░░░░░░░░░░░░░]    3%",
 		"  Resets in 4h 25m",
 		"• Weekly Usage:",
-		"  [###########---------]   53%",
+		"  [██████████▋░░░░░░░░░]   53%",
 		"  Resets in 3d 16h",
 	}, "\n")
 
@@ -228,12 +232,12 @@ func TestUsageBarAndPercentageNormalizeValues(t *testing.T) {
 		bar        string
 		whole      float64
 	}{
-		{name: "zero", percentage: 0, bar: "--------------------", whole: 0},
-		{name: "low", percentage: 2, bar: "#-------------------", whole: 2},
-		{name: "fraction", percentage: 24.4, bar: "#####---------------", whole: 24},
-		{name: "rounded", percentage: 24.5, bar: "#####---------------", whole: 25},
-		{name: "high", percentage: 53, bar: "###########---------", whole: 53},
-		{name: "clamped", percentage: 125, bar: "####################", whole: 100},
+		{name: "zero", percentage: 0, bar: "░░░░░░░░░░░░░░░░░░░░", whole: 0},
+		{name: "low", percentage: 2, bar: "▍░░░░░░░░░░░░░░░░░░░", whole: 2},
+		{name: "fraction", percentage: 24.4, bar: "████▉░░░░░░░░░░░░░░░", whole: 24},
+		{name: "rounded", percentage: 24.5, bar: "████▉░░░░░░░░░░░░░░░", whole: 25},
+		{name: "high", percentage: 53, bar: "██████████▋░░░░░░░░░", whole: 53},
+		{name: "clamped", percentage: 125, bar: "████████████████████", whole: 100},
 	}
 
 	for _, test := range tests {
@@ -267,6 +271,7 @@ func TestTooltipUsesResetFallbacks(t *testing.T) {
 
 func TestJSONMaintainsWaybarContract(t *testing.T) {
 	now := time.Now()
+
 	data, err := JSON([]usage.Snapshot{{Provider: "codex", FetchedAt: now, Windows: []usage.Window{{Label: "weekly", UsedPct: 12}}}}, usage.View{}, now)
 	if err != nil {
 		t.Fatal(err)
