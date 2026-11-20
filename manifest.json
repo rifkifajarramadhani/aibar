@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "overhaul.aibar",
+  "name": "aibar",
+  "version": "1.0.0",
+  "author": "overhaul",
+  "description": "Show AI usage limits, balances, accounts, and seven days of activity in the Omarchy bar.",
+  "kinds": ["bar-widget", "service"],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "widget/Panel.qml",
+    "service": "widget/Usage.qml"
+  },
+  "barWidget": {
+    "displayName": "aibar",
+    "description": "AI usage limits, reset times, and recent activity.",
+    "category": "AI",
+    "defaultSection": "right",
+    "allowMultiple": false
+  }
+}
