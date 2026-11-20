@@ -1,117 +1,65 @@
-# Repository Guidelines
+# Repository guidelines
 
-## Project Structure & Module Organization
+## Project structure
 
-`aibar` is a Go module that emits Waybar-compatible JSON for AI usage limits. It
-follows domain-first Clean Architecture (see `docs/ARCHITECTURE.md`). The CLI
-entrypoint is in `cmd/aibar/main.go`. The core domain is `internal/usage`
-(entities, the `Store` merge policy, the `View`, and the `Provider`/`Refreshable`/
-`SnapshotArchive` ports); the application loop is `internal/daemon` (which owns the
-`Renderer`/`ControlServer` ports and the control-command vocabulary). Adapters
-live under `internal/adapter/`: `codex` and `claude` (providers), `waybar`
-(presentation), `control` (Unix socket), `statefile` (state.json persistence),
-and `logging`. `internal/config` resolves paths and `internal/bootstrap` wires
-the adapters into the daemon. Core packages must not import adapters, bootstrap,
-or config — `depguard` enforces this. Put integration fixtures in `testdata/`
-(currently `testdata/codex/` and `testdata/claude/`), documentation in `docs/`,
-and Waybar assets/snippets in `assets/` or the repository root.
+aibar is the `overhaul.aibar` Omarchy bar plugin. The initial compatibility
+baseline is Omarchy 4.5.0-3. The root `manifest.json` declares the two entry
+points.
 
-## Build, Test, and Development Commands
+- `widget/Panel.qml` draws the bar button and popup using Omarchy's shared UI.
+- `widget/Usage.qml` is the shared service for refresh and record discovery.
+- `widget/Records.js` validates and normalizes version 1 usage records.
+- `widget/i18n/` contains aibar's translation catalogs.
+- `tests/` contains synthetic records, parser tests, and the isolated
+  desktop smoke test.
+
+Read [the project overview](docs/PROJECT_OVERVIEW.md) for the runtime and
+[DESIGN.md](DESIGN.md) for the visual conventions. Use the packaged shell at
+`/usr/share/omarchy/shell` as the compatibility reference.
+
+## Development checks
 
 ```sh
-make check                           # fmt + lint + test (pre-submit gate)
-go test ./...                         # run all package tests
-go test -race ./...                  # check concurrent code for races
-go vet ./...                         # run Go static checks
-golangci-lint run ./...              # run repository linters (includes depguard)
-gofmt -w ./cmd ./internal            # format Go sources
-wsl -fix ./cmd/... ./internal/...    # apply logical-step blank-line spacing
-go build -trimpath ./cmd/aibar       # build the daemon binary
-go run ./cmd/aibar daemon             # run against ~/.codex/sessions
+node --test tests/records.test.mjs
+omarchy plugin validate .
+/usr/lib/qt6/bin/qmlformat -w 2 -i widget/*.qml
+/usr/lib/qt6/bin/qmllint widget/Usage.qml widget/Records.js
+bash -n tests/desktop.sh
+tests/desktop.sh
 ```
 
-Use `go build -o aibar ./cmd/aibar` when a named local binary is useful.
-Daemon flags such as `--codex-root`, `--state`, and `--cache-dir` make fixture
-or isolated-runtime testing straightforward.
+Run the desktop smoke test from a Wayland session with Omarchy and its stock
+Hyprland and Quickshell installed. It also uses Bash, Node.js, jq, ripgrep,
+grim, wtype, ImageMagick, and Tesseract with English recognition. It starts
+its own compositor, shell, and D-Bus session and feeds them synthetic records.
+It uses temporary directories and prints the path to the logs and
+screenshots if a check fails.
 
-## Coding Style & Naming Conventions
+Keep Omarchy's UI components and theme as the source of shared behavior.
+Keep provider-specific data extraction and authentication upstream. Treat
+record strings as untrusted display data and use `Text.PlainText`. Never
+commit credentials, real usage data, or generated state. Run desktop checks
+with isolated settings and paths. Use synthetic records when adding schema
+coverage.
 
-Use standard Go formatting (`gofmt`) and idiomatic Go names: exported names
-need useful GoDoc where appropriate, while package-private helpers use
-camelCase. Keep provider-specific parsing and file-watching logic inside its
-adapter package under `internal/adapter/`; preserve the `usage` domain,
-snapshot, and renderer contracts when adding providers, and define new ports in
-the package that consumes them. Prefer small, error-returning functions and
-restrictive permissions for runtime files.
+## Checkpoint commit workflow
 
-Separate logical steps with blank lines (`wsl` / `wsl_5` style): group related
-assignments together, then leave a blank line before the next guard clause,
-I/O call, state transition, or return. Example:
+This guide authorizes local checkpoint commits during implementation.
+Commit on the current branch, including `main`, unless asked otherwise.
+Pushing requires a separate request.
 
-```go
-file, err := os.Open(path)
-if err != nil {
-	return usage.Snapshot{}, err
-}
+Before editing, list small, independently reviewable checkpoints and an
+intended commit subject for each. One logical change needs one checkpoint.
 
-defer func() { _ = file.Close() }()
-
-snapshot, err := Parse(file, now)
-if err != nil {
-	return usage.Snapshot{}, fmt.Errorf("parse %s: %w", path, err)
-}
-
-snapshot.Provider = "codex"
-return snapshot, nil
-```
-
-Before submitting Go changes, run `gofmt`, `wsl -fix ./cmd/... ./internal/...`,
-and `golangci-lint run ./...`. Error strings should start lowercase and
-intentionally ignored close/remove errors should use `_ =`.
-
-## Testing Guidelines
-
-Tests use Go’s standard `testing` package and live beside the code as
-`*_test.go`. Name tests `Test<Behavior>` and use temporary directories for
-filesystem behavior. Add JSONL fixtures and parser tests for new provider
-formats, then run `go test ./...` and `go test -race ./...` before submitting.
-
-## Commit & Pull Request Guidelines
-
-Use short, imperative commit subjects such as `fix: handle Codex rollout
-rotation`. Keep each commit focused on one logical change.
-
-### Checkpoint commit workflow
-
-This guide is standing authorization to make local checkpoint commits as part
-of implementation. Commit on the current branch, including `main`, unless the
-user asks for a different branch. Pushing requires a separate request.
-
-Before editing, list small, independently reviewable checkpoints in the plan
-or todo list, with an intended commit subject for each. A single logical
-change needs one checkpoint.
-
-1. Make the checkpoint's change with any tests or documentation it needs.
-2. Run focused checks and address failures. For Go changes, test the affected
-   packages and check formatting and lint. For documentation, review the diff
+1. Make the change with any required tests or documentation.
+2. Run focused checks and fix failures. For documentation, review the diff
    and check links you add or change.
-3. Stage only the checkpoint's files or hunks and review `git diff --cached`.
-   Keep unrelated work out of the commit.
-4. Commit as soon as the focused checks pass. Finish the commit before
-   starting the next checkpoint or marking this one complete.
+3. Stage only the checkpoint's changes and review `git diff --cached`.
+4. Commit as soon as the focused checks pass. Finish that commit before
+   starting the next checkpoint.
 
-Run the repository-wide checks listed above before submitting Go changes.
-Commit any follow-up fixes from those checks separately. Before reporting
-completion, check `git status` and list the commits you created.
-
-Pull requests should explain the behavior change, include test commands and
-results, link any relevant issue, and include Waybar screenshots or config
-examples when the UI or integration changes.
-
-## Security & Configuration Tips
-
-The Codex milestone reads local rollout files and makes no network calls.
-Never commit credentials, session data, or generated state. Keep cache, PID,
-and socket files under the user cache directory with restrictive permissions;
-future network-backed providers must preserve last-good data and expose stale
-or authentication errors visibly.
+Run the repository checks before reporting completion. Commit follow-up fixes
+separately, check `git status`, and list the commits you created. Use short,
+imperative subjects such as `fix: keep cached usage on refresh failure`.
+Pull requests should describe the behavior and checks and include screenshots
+or configuration examples when the widget or integration changes.
