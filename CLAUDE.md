@@ -44,3 +44,13 @@ Single daemon, one goroutine per source feeding a central select loop. `daemon.D
 - **`next-provider`/`prev-provider` are intentionally inert** in the current milestone — leave them wired but no-op rather than removing them.
 - **Never commit credentials, session data, or generated state.** Only the provider adapters that own them read credentials or make network calls (Claude's OAuth usage endpoint); nothing else does. Runtime files (socket, PID, state) go under the cache dir with restrictive (0600/0700) permissions.
 - Add a JSONL fixture under `testdata/<provider>/` plus a parser test for any new provider rollout format.
+
+## Checkpoint commits
+
+Follow the [checkpoint commit workflow](AGENTS.md#checkpoint-commit-workflow).
+List checkpoints and their intended commit subjects before editing. Stage each
+checkpoint's changes and commit locally as soon as its focused checks pass,
+before starting the next checkpoint. The guide authorizes these commits on
+the current branch, including `main`, unless the user asks for a different
+branch. Pushing requires a separate request. Before reporting completion,
+check `git status` and list the commits you created.

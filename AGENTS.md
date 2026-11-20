@@ -78,9 +78,32 @@ formats, then run `go test ./...` and `go test -race ./...` before submitting.
 
 ## Commit & Pull Request Guidelines
 
-The history currently contains only an `initial commit`, so no repository
-commit convention is established. Use short, imperative subjects (for
-example, `add Codex rotation handling`) and keep unrelated changes separate.
+Use short, imperative commit subjects such as `fix: handle Codex rollout
+rotation`. Keep each commit focused on one logical change.
+
+### Checkpoint commit workflow
+
+This guide is standing authorization to make local checkpoint commits as part
+of implementation. Commit on the current branch, including `main`, unless the
+user asks for a different branch. Pushing requires a separate request.
+
+Before editing, list small, independently reviewable checkpoints in the plan
+or todo list, with an intended commit subject for each. A single logical
+change needs one checkpoint.
+
+1. Make the checkpoint's change with any tests or documentation it needs.
+2. Run focused checks and address failures. For Go changes, test the affected
+   packages and check formatting and lint. For documentation, review the diff
+   and check links you add or change.
+3. Stage only the checkpoint's files or hunks and review `git diff --cached`.
+   Keep unrelated work out of the commit.
+4. Commit as soon as the focused checks pass. Finish the commit before
+   starting the next checkpoint or marking this one complete.
+
+Run the repository-wide checks listed above before submitting Go changes.
+Commit any follow-up fixes from those checks separately. Before reporting
+completion, check `git status` and list the commits you created.
+
 Pull requests should explain the behavior change, include test commands and
 results, link any relevant issue, and include Waybar screenshots or config
 examples when the UI or integration changes.
