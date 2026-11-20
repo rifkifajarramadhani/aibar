@@ -7,6 +7,8 @@ refresh triggers.
 
 ## Build and run
 
+Building `aibar` requires Go 1.27.4 or later.
+
 ```sh
 go build -o aibar ./cmd/aibar
 ./aibar daemon
