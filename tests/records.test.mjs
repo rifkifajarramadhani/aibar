@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { parse, history, countdown } from '../widget/Records.mjs'
+import { parse, history, countdown, recordId } from '../widget/Records.mjs'
 import { listing } from '../widget/OmarchyFiles.mjs'
 import { records } from './fixtures.mjs'
 
@@ -70,4 +70,10 @@ test('rejects invalid records and fields while preserving valid siblings', () =>
 test('decodes Omarchy file discovery output', () => {
   assert.deepEqual(Object.entries(listing(['codex.json', '10', '../invalid.json', '12', 'large.json', '2097153', ''].join('\0'))),
     [['codex', true], ['large', false]])
+})
+
+test('accepts only complete record filenames', () => {
+  assert.equal(recordId('codex.json'), 'codex')
+  assert.equal(recordId('codex.json\n'), null)
+  assert.equal(recordId('../codex.json'), null)
 })

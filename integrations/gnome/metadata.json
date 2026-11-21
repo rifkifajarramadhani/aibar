@@ -1,0 +1,8 @@
+{
+  "uuid": "aibar@rifkifajarramadhani.github.io",
+  "name": "aibar",
+  "description": "AI coding usage in the top bar",
+  "shell-version": ["50", "51"],
+  "url": "https://github.com/rifkifajarramadhani/aibar",
+  "version": 1
+}

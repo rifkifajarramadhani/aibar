@@ -1,8 +1,7 @@
 # aibar project overview
 
-aibar is the `overhaul.aibar` plugin for Omarchy's stock Quickshell bar. It
-answers two questions at a glance. How much of each allowance has been used,
-and what was the recent activity for that provider?
+aibar shows coding-agent allowances and recent activity in the Omarchy and
+GNOME Shell top bars. Both integrations use the same version 1 record format.
 
 ## Runtime
 
@@ -63,3 +62,17 @@ each tick.
 Collector text, including help and account fields, renders as plain text.
 The plugin forwards no collector-supplied values into shell commands.
 See [DESIGN.md](../DESIGN.md) for the visual and interaction conventions.
+
+## GNOME Shell extension
+
+[The GNOME integration](../integrations/gnome/) adds a right-side panel menu
+that reads the same files over Gio. It scans at enable, when the menu opens,
+every 30 seconds, and on **Reload records**. A scan can queue one follow-up
+read. The extension preserves a provider's last readable record through a
+malformed replacement and drops files that disappear after a successful scan.
+Closing the menu stops the countdown timer. Disabling the extension cancels
+pending reads and removes both timers.
+
+GNOME reads usage from disk. A separate producer supplies records on a
+GNOME-only machine. The [installation guide](../README.md#install-on-gnome-shell)
+covers the ZIP and the synthetic desktop test.

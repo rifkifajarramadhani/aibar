@@ -2,7 +2,7 @@ export const maxRecordBytes = 2 * 1024 * 1024
 
 export function recordId(filename) {
   const match = /^([a-zA-Z0-9][a-zA-Z0-9_.-]{0,63})\.json$/.exec(filename)
-  return match ? match[1] : null
+  return match && match[0] === filename ? match[1] : null
 }
 
 function object(value) {

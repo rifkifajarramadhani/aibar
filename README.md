@@ -1,15 +1,15 @@
 # aibar
 
-aibar is a native Omarchy bar widget for checking AI coding usage. It shows
-each provider's limits and reset countdowns first, then today's activity and
-a seven-day token history. Plans, balances, and read-only account details
-appear when Omarchy's collectors supply them. Providers with activity but no
+aibar shows AI coding usage in the Omarchy bar and the GNOME Shell top bar.
+Each provider's limits and reset countdowns come first, followed by today's
+activity and a seven-day token history. Plans, balances, and read-only account
+details appear when the records include them. Providers with activity but no
 quota still get a section.
 
 The initial compatibility baseline is **Omarchy 4.5.0-3** with its stock bar
 and bundled Quickshell. Run `pacman -Q omarchy` to check the package version.
 
-## Install from this checkout
+## Install on Omarchy
 
 Run these commands from the repository root inside your Omarchy session.
 
@@ -26,7 +26,7 @@ omarchy plugin enable overhaul.aibar --section right
 If you cloned the stock Agents widget, disable that copy too. aibar and Agents
 each schedule the same updater. Keep one enabled to avoid duplicate refreshes.
 
-## Use the widget
+## Use the Omarchy widget
 
 - Left-click the bar icon to open or close the popup. Middle-click it or select
   **Refresh** in the popup to force a refresh.
@@ -47,7 +47,7 @@ collectors handle sign-in, network requests, and cached usage. Use Omarchy's
 agent commands for account management and launching. See the
 [Omarchy AI guide](https://omarchy.org/manual/ai/).
 
-## Troubleshooting
+## Troubleshoot the Omarchy widget
 
 - If the icon is missing, run `omarchy plugin list` and check that
   `overhaul.aibar` is enabled. Validate the installed plugin folder and run
@@ -59,6 +59,65 @@ agent commands for account management and launching. See the
 - A failed refresh leaves usable readings visible. Check the provider's
   status and last update time in the popup. A malformed record produces a
   read warning while other providers stay visible.
+
+## Install on GNOME Shell
+
+aibar supports GNOME Shell **50** and **51**. The extension reads local version 1
+usage records. For live data on a GNOME-only machine, run a separate producer
+that writes those records to
+`${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage/`.
+See the [record contract](docs/PROJECT_OVERVIEW.md#record-contract).
+
+From the repository root, use the `gnome-extensions` CLI to build and install
+the ZIP. If the CLI cannot find the extension when you enable it, log out and
+back in, then run the enable command again.
+
+```sh
+integrations/gnome/pack.sh
+gnome-extensions install aibar@rifkifajarramadhani.github.io.shell-extension.zip
+gnome-extensions enable aibar@rifkifajarramadhani.github.io
+```
+
+Open **AI usage** from the right side of the top bar. **Reload records** reads
+the files immediately. The extension also reads them at startup, when you open
+the menu, and every 30 seconds. With the provider list focused, use the arrow
+keys, Page Up, Page Down, Home, or End to scroll. Escape closes the menu.
+
+### Try GNOME with synthetic records
+
+Run `tests/gnome.sh` on a system with GNOME Shell 50 or 51 and
+`gnome-shell-test-tool`. The test installs the ZIP in a headless session,
+writes synthetic records to a temporary state directory, and checks the menu
+and its keyboard controls.
+
+To see the menu yourself from a Wayland session, start a nested GNOME Shell
+DevKit window with temporary data, configuration, and state directories.
+This example uses Node.js to write the fixtures. Close the DevKit window to
+end the test session. [GNOME Shell debugging guide](https://gjs.guide/extensions/development/debugging.html)
+
+```sh
+(
+  aibar_demo="$(mktemp -d)"
+  trap 'rm -rf -- "$aibar_demo"' EXIT
+  export XDG_DATA_HOME="$aibar_demo/data" XDG_CONFIG_HOME="$aibar_demo/config"
+  export XDG_CACHE_HOME="$aibar_demo/cache" XDG_STATE_HOME="$aibar_demo/state"
+  export GSETTINGS_BACKEND=keyfile
+  node tests/fixtures.mjs "$XDG_STATE_HOME/omarchy/agents/usage"
+  integrations/gnome/pack.sh "$aibar_demo"
+  dbus-run-session -- sh -ec '
+    gnome-extensions install "$1"
+    gsettings set org.gnome.shell enabled-extensions "[\"aibar@rifkifajarramadhani.github.io\"]"
+    exec gnome-shell --devkit --wayland-display aibar-demo
+  ' sh "$aibar_demo/aibar@rifkifajarramadhani.github.io.shell-extension.zip"
+)
+```
+
+### Remove the GNOME extension
+
+```sh
+gnome-extensions disable aibar@rifkifajarramadhani.github.io
+gnome-extensions uninstall aibar@rifkifajarramadhani.github.io
+```
 
 ## Clean up an earlier Waybar installation
 

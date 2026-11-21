@@ -1,0 +1,52 @@
+.aibar-menu {
+    width: 27em;
+    spacing: 0.55em;
+}
+
+.aibar-header,
+.aibar-status {
+    padding: 0 0.6em;
+}
+
+.aibar-header,
+.aibar-reading {
+    spacing: 0.6em;
+}
+
+.aibar-title,
+.aibar-subtitle {
+    font-weight: bold;
+}
+
+.aibar-reload {
+    padding: 0.35em 0.65em;
+}
+
+.aibar-scroll {
+    max-height: 23em;
+    border: 1px solid transparent;
+}
+
+.aibar-scroll:focus {
+    border-color: -st-accent-color;
+    border-radius: 8px;
+}
+
+.aibar-providers {
+    padding: 0.2em 0.6em;
+    spacing: 0.65em;
+}
+
+.aibar-provider {
+    padding: 0.45em 0;
+    spacing: 0.35em;
+}
+
+.aibar-provider .aibar-status {
+    padding: 0;
+}
+
+.aibar-details {
+    padding-top: 0.4em;
+    spacing: 0.25em;
+}

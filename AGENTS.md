@@ -2,17 +2,18 @@
 
 ## Project structure
 
-aibar is the `overhaul.aibar` Omarchy bar plugin. The initial compatibility
-baseline is Omarchy 4.5.0-3. The root `manifest.json` declares the two entry
-points.
+aibar supports the Omarchy bar and the GNOME Shell top bar. The Omarchy
+baseline is 4.5.0-3. The root `manifest.json` declares the Omarchy plugin's
+two entry points.
 
 - `widget/Panel.qml` draws the bar button and popup using Omarchy's shared UI.
 - `widget/Usage.qml` is the shared service for refresh and record discovery.
 - `widget/Records.mjs` validates and normalizes version 1 usage records.
 - `widget/OmarchyFiles.mjs` decodes Omarchy's file discovery output.
 - `widget/i18n/` contains aibar's translation catalogs.
-- `tests/` contains synthetic records, parser tests, and the isolated
-  desktop smoke test.
+- `integrations/gnome/` contains the GNOME Shell 50 and 51 extension and
+  its ZIP packager.
+- `tests/` contains synthetic records, parser tests, and desktop smoke tests.
 
 Read [the project overview](docs/PROJECT_OVERVIEW.md) for the runtime and
 [DESIGN.md](DESIGN.md) for the visual conventions. Use the packaged shell at
@@ -36,9 +37,13 @@ its own compositor, shell, and D-Bus session and feeds them synthetic records.
 It uses temporary directories and prints the path to the logs and
 screenshots if a check fails.
 
-Keep Omarchy's UI components and theme as the source of shared behavior.
+Run `tests/gnome.sh` on GNOME Shell 50 and 51 with the Extensions CLI and
+`gnome-shell-test-tool` available. It installs a fresh ZIP in a headless
+session and writes only to temporary settings and state paths.
+
+Use each shell's native UI components and theme.
 Keep provider-specific data extraction and authentication upstream. Treat
-record strings as untrusted display data and use `Text.PlainText`. Never
+record strings as untrusted display data and render them as plain text. Never
 commit credentials, real usage data, or generated state. Run desktop checks
 with isolated settings and paths. Use synthetic records when adding schema
 coverage.

@@ -1,7 +1,7 @@
 ---
 version: alpha
 name: aibar
-description: AI usage in the native Omarchy bar
+description: AI usage in the Omarchy and GNOME Shell top bars
 omitted:
   - section: colors
     reason: "Palette comes from the active Omarchy theme at runtime"
@@ -87,3 +87,13 @@ Zero usage has a number. Missing usage has a distinct empty value.
 - Keep status and exact numbers visible without hover.
 - Bind collector-supplied text to `Text.PlainText`.
 - Use Omarchy's existing controls for popup and button behavior.
+
+## GNOME Shell menu
+
+Use GNOME Shell's panel button, popup, button and scrollbar styles. Keep
+**Reload records** in the header above the scrollable provider list. The list
+has one keyboard focus stop and accepts the arrow keys, page keys, Home and
+End. Keep section labels and exact readings aligned in rows. Use an em dash
+for a missing token count and a number for a recorded zero. Provider and
+account strings wrap as plain text. Use a visible status line for a folder
+or file read failure and mark any retained readings in their provider section.
