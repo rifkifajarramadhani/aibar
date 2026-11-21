@@ -47,6 +47,13 @@ Use the Omarchy bar font and `Style.font` sizes. Provider names, section
 labels, and readings use the same family. Long provider text wraps as plain
 text. History counts stay right-aligned for comparison.
 
+Provider headings use the stock Agents icon slot and gap, sized with
+`Style.font.heading` and `Style.space(10)`. Load `<id>-light.svg` from the
+installed Agents assets on light popup backgrounds when available, then try
+`<id>.svg`. Dark backgrounds use `<id>.svg` directly. If neither candidate
+loads, use the aibar glyph in the same slot. The icon is decorative and
+the provider name supplies the accessible label.
+
 ## Layout
 
 Keep the title and refresh action visible while the body scrolls. Use

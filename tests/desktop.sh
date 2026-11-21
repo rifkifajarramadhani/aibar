@@ -117,13 +117,35 @@ capture() {
   local top=${4:-0}
   magick "$test_root/$name.png" -crop "${crop_width}x${height}+$((width - crop_width))+$top" +repage \
     -resize 200% "$test_root/$name-crop.png"
-  tesseract "$test_root/$name-crop.png" "$test_root/$name" --psm 6 2>/dev/null
+  tesseract "$test_root/$name-crop.png" "$test_root/$name" --psm 6 txt tsv 2>/dev/null
 }
 
 check() {
   local name=$1 pattern=$2
   if ! rg -i "$pattern" "$test_root/$name.txt"; then
     echo "Expected '$pattern' in $name" >&2
+    return 1
+  fi
+}
+
+has_color() {
+  local expected_color=$1
+  shift
+  magick "$@" -depth 8 -format %c histogram:info: | rg -Fi "$expected_color" >/dev/null
+}
+
+check_icon() {
+  local name=$1 heading=$2 expected_color=$3 left top coverage
+  # OCR locates the heading in the 2x crop. Sample its icon slot to the left.
+  if ! read -r left top < <(awk -F '\t' -v word="$heading" 'tolower($12) ~ ("^" word "$") { print $7, $8; exit }' "$test_root/$name.tsv"); then
+    echo "Could not locate $heading in $name" >&2
+    return 1
+  fi
+  # Allow for antialiasing and reject isolated matching pixels.
+  coverage=$(magick "$test_root/$name-crop.png" -crop "44x44+$((left - 56))+$((top - 10))" +repage \
+    -fuzz 3% -transparent "$expected_color" -alpha extract -negate -format '%[fx:mean]' info:)
+  if ! awk -v coverage="$coverage" 'BEGIN { exit !(coverage > 0.01) }'; then
+    echo "Expected icon color $expected_color beside $heading in $name" >&2
     return 1
   fi
 }
@@ -137,6 +159,8 @@ check dark 'Stale.*updated'
 check dark '<img src='
 check dark '37% used'
 check dark 'Resets in [0-9]+m [0-5]?[0-9]s'
+check_icon dark claude '#D97757'
+check_icon dark 'c?codex' '#FFFFFF'
 sleep 1.2
 capture "$first" countdown
 reset_line='Resets in [0-9]+m [0-5]?[0-9]s'
@@ -148,6 +172,10 @@ capture "$first" end
 check end 'USD remaining'
 check end 'Hermes'
 check end 'Waiting for auth'
+check end 'Test Provider'
+check end 'Both Monitors'
+dark_text=$(sed -n 's/^foreground = "\(#.*\)"/\1/p' "$theme/colors.toml")
+check_icon end test "$dark_text"
 
 wtype -k Return
 sleep 0.5
@@ -163,12 +191,19 @@ cp "$OMARCHY_PATH/themes/catppuccin-latte/colors.toml" "$theme/colors.toml"
 light_color=$(sed -n 's/^background = "\(#.*\)"/\1/p' "$theme/colors.toml")
 [[ $(omarchy-shell shell applyTheme "$(base64 -w0 "$theme/colors.toml")" "") == ok ]]
 sleep 0.5
-grim -o "$first" "$test_root/light.png"
-has_color() {
-  magick "$1" -format %c histogram:info: | rg -Fi "$2" > /dev/null
-}
-has_color "$test_root/dark.png" "$dark_color"
-has_color "$test_root/light.png" "$light_color"
+capture "$first" light
+has_color "$dark_color" "$test_root/dark.png"
+has_color "$light_color" "$test_root/light.png"
+check_icon light claude '#D97757'
+check_icon light 'c?codex' '#111111'
+
+wtype -k End
+sleep 0.3
+capture "$first" light_end
+check light_end 'Test Provider'
+check light_end 'Both Monitors'
+light_text=$(sed -n 's/^foreground = "\(#.*\)"/\1/p' "$theme/colors.toml")
+check_icon light_end test "$light_text"
 
 wtype -k Escape
 sleep 0.3
@@ -199,6 +234,6 @@ check empty 'No usage records yet'
 if rg -n 'Plugin widget overhaul.aibar failed|service plugin load failed for overhaul.aibar|overhaul.aibar/widget/.*(TypeError|ReferenceError)' "$test_root/shell.log"; then
   exit 1
 fi
-echo "Verified the native popup on two outputs, live themes, keyboard, countdown, and partial refresh." >&3
+echo "Verified the native popup on two outputs, provider icons, live themes, keyboard, countdown, and partial refresh." >&3
 SESSION
 result=0

@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls as Controls
 import QtQuick.Layouts
+import Quickshell
 import qs.Commons as Commons
 import qs.Ui as Ui
 import "Records.js" as Records
@@ -19,10 +20,20 @@ Ui.Panel {
   readonly property color urgent: Commons.Color.urgent
   readonly property string fontFamily: bar?.fontFamily || Commons.Style.font.family
   readonly property var locale: Qt.locale(Commons.I18n.formatLocale)
+  readonly property string providerAssets: "file://" + Quickshell.env("OMARCHY_PATH") + "/shell/plugins/agents/assets/"
+  readonly property bool lightPopup: {
+    const color = Commons.Color.popups.background;
+    return 0.2126 * linearChannel(color.r) + 0.7152 * linearChannel(color.g) + 0.0722 * linearChannel(color.b) >= 0.5;
+  }
   property double now: Date.now()
   readonly property double today: {
     const date = new Date(now);
     return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  }
+
+  // Match the relative luminance threshold used by the stock Agents popup.
+  function linearChannel(channel) {
+    return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
   }
 
   function formatCount(value) {
@@ -258,11 +269,22 @@ Ui.Panel {
                   foreground: root.foreground
                 }
 
-                Label {
+                RowLayout {
                   Layout.fillWidth: true
-                  text: section.provider.name
-                  font.pixelSize: Commons.Style.font.body
-                  font.bold: true
+                  spacing: Commons.Style.space(10)
+
+                  ProviderIcon {
+                    providerId: section.provider.id
+                  }
+
+                  Label {
+                    Layout.fillWidth: true
+                    text: section.provider.name
+                    font.pixelSize: Commons.Style.font.body
+                    font.bold: true
+                    Accessible.role: Accessible.StaticText
+                    Accessible.name: text
+                  }
                 }
 
                 Details {
@@ -389,6 +411,42 @@ Ui.Panel {
     color: root.foreground
     font.family: root.fontFamily
     font.pixelSize: Commons.Style.font.bodySmall
+  }
+
+  component ProviderIcon: Item {
+    id: icon
+    required property string providerId
+    readonly property string asset: root.providerAssets + providerId
+
+    implicitWidth: Commons.Style.font.heading
+    implicitHeight: implicitWidth
+    Accessible.ignored: true
+
+    ProviderLogo {
+      id: lightLogo
+      source: root.lightPopup ? icon.asset + "-light.svg" : ""
+    }
+
+    ProviderLogo {
+      id: defaultLogo
+      source: !root.lightPopup || lightLogo.status === Image.Error ? icon.asset + ".svg" : ""
+    }
+
+    Label {
+      anchors.centerIn: parent
+      visible: lightLogo.status !== Image.Ready && defaultLogo.status !== Image.Ready
+      text: barButton.text
+      font.pixelSize: Commons.Style.font.heading
+      Accessible.ignored: true
+    }
+  }
+
+  component ProviderLogo: Image {
+    anchors.fill: parent
+    fillMode: Image.PreserveAspectFit
+    sourceSize.width: width * 2
+    sourceSize.height: height * 2
+    Accessible.ignored: true
   }
 
   component Meter: Item {

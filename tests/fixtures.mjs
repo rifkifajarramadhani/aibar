@@ -67,7 +67,9 @@ export function records(now = new Date()) {
       usageStatusText: 'Waiting for auth',
       authHelpText: 'Sign in to OpenRouter in Omarchy.'
     }),
-    unused: record('unused', 'Unused', { ready: false, recentDays: [] })
+    unused: record('unused', 'Unused', { ready: false, recentDays: [] }),
+    'zz-aibar-test': record('zz-aibar-test',
+      'Test Provider for Checking Long Names in the Omarchy Usage Popup on Both Monitors', { tierLabel: 'Demo' })
   }
 }
 
