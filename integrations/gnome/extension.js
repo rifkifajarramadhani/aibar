@@ -30,9 +30,18 @@ function label(text, styleClass = '') {
 
 function reading(parent, name, value) {
     const row = new St.BoxLayout({style_class: 'aibar-reading'});
-    row.add_child(label(name));
-    const display = new St.Bin({child: label(value), x_expand: true, x_align: Clutter.ActorAlign.END});
-    row.add_child(display);
+    const caption = label(name);
+    caption.x_expand = true;
+    caption.y_align = Clutter.ActorAlign.START;
+    const display = label(value);
+    display.clutter_text.set_line_alignment(Pango.Alignment.RIGHT);
+    row.add_child(caption);
+    row.add_child(new St.Bin({
+        child: display,
+        x_expand: true,
+        x_align: Clutter.ActorAlign.END,
+        y_align: Clutter.ActorAlign.START,
+    }));
     parent.add_child(row);
 }
 
@@ -88,7 +97,7 @@ export default class AibarExtension extends Extension {
         header.add_child(reload);
         content.add_child(header);
 
-        this._status = label('', 'aibar-status');
+        this._status = label('', 'aibar-status aibar-supporting');
         content.add_child(this._status);
         this._scroll = new St.ScrollView({
             style_class: 'aibar-scroll',
@@ -255,20 +264,22 @@ export default class AibarExtension extends Extension {
     _provider(record, unreadable, now) {
         const section = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'aibar-provider'});
         this._list.add_child(section);
-        const title = label(record.name, 'aibar-title');
+        const heading = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'aibar-details'});
+        const title = label(record.name, 'aibar-provider-title');
         title.set_accessible_role(Atk.Role.HEADING);
-        section.add_child(title);
+        heading.add_child(title);
         if (unreadable)
-            section.add_child(label('Showing last readable record', 'aibar-status'));
+            heading.add_child(label('Showing last readable record', 'aibar-supporting'));
+        section.add_child(heading);
         this._details(section, record, record.updated, +now);
 
         for (const account of record.accounts) {
             const details = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'aibar-details'});
             details.add_child(label(account.name, 'aibar-subtitle'));
             if (account.active)
-                details.add_child(label('Active account'));
+                details.add_child(label('Active account', 'aibar-supporting'));
             if (account.email)
-                details.add_child(label(account.email));
+                details.add_child(label(account.email, 'aibar-supporting'));
             this._details(details, account, null, +now);
             section.add_child(details);
         }
@@ -298,35 +309,44 @@ export default class AibarExtension extends Extension {
     }
 
     _details(parent, data, updated, now) {
+        const details = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'aibar-measurements'});
         if (data.plan)
-            reading(parent, 'Plan', data.plan);
+            reading(details, 'Plan', data.plan);
         if (data.stale) {
             const recorded = data.fetched ?? updated;
             const text = recorded === null ? 'Cached limits' : `Cached limits · ${timestamp.format(recorded)}`;
-            parent.add_child(label(text, 'aibar-status'));
+            details.add_child(label(text, 'aibar-supporting'));
         }
         for (const limit of data.limits) {
-            reading(parent, limit.label || 'Limit', percent.format(limit.percent));
+            const group = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'aibar-details'});
+            reading(group, limit.label || 'Limit', percent.format(limit.percent));
             if (limit.reset !== null) {
-                const actor = label(resetText(limit.reset, now), 'aibar-status');
-                parent.add_child(actor);
+                const actor = label(resetText(limit.reset, now), 'aibar-supporting');
+                group.add_child(actor);
                 this._countdowns.push({actor, reset: limit.reset});
             }
+            details.add_child(group);
         }
         if (data.balance) {
             const {remaining, funded, spent, currency, estimated} = data.balance;
             const money = value => `${amount.format(value)} ${currency}`;
-            reading(parent, estimated ? 'Estimated balance' : 'Balance', money(remaining));
+            const group = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'aibar-details'});
+            reading(group, estimated ? 'Estimated balance' : 'Balance', money(remaining));
             if (funded !== null)
-                reading(parent, 'Funded', money(funded));
+                reading(group, 'Funded', money(funded));
             if (spent !== null)
-                reading(parent, 'Spent', money(spent));
+                reading(group, 'Spent', money(spent));
+            details.add_child(group);
         }
         if (data.resetCredits !== null)
-            reading(parent, 'Reset credits', count.format(data.resetCredits));
+            reading(details, 'Reset credits', count.format(data.resetCredits));
         if (data.status)
-            parent.add_child(label(data.status));
+            details.add_child(label(data.status));
         if (data.help)
-            parent.add_child(label(data.help));
+            details.add_child(label(data.help, 'aibar-supporting'));
+        if (details.get_n_children() > 0)
+            parent.add_child(details);
+        else
+            details.destroy();
     }
 }

@@ -1,6 +1,6 @@
 .aibar-menu {
     width: 27em;
-    spacing: 0.55em;
+    spacing: 0.75em;
 }
 
 .aibar-header,
@@ -10,12 +10,29 @@
 
 .aibar-header,
 .aibar-reading {
-    spacing: 0.6em;
+    spacing: 0.65em;
 }
 
 .aibar-title,
+.aibar-provider-title,
 .aibar-subtitle {
     font-weight: bold;
+}
+
+.aibar-title {
+    font-size: 1.2em;
+}
+
+.aibar-provider-title {
+    font-size: 1.1em;
+}
+
+.aibar-subtitle {
+    padding-bottom: 0.1em;
+}
+
+.aibar-supporting {
+    font-size: 0.9em;
 }
 
 .aibar-reload {
@@ -33,20 +50,18 @@
 }
 
 .aibar-providers {
-    padding: 0.2em 0.6em;
-    spacing: 0.65em;
+    padding: 0.25em 0.6em;
+    spacing: 1.15em;
 }
 
 .aibar-provider {
-    padding: 0.45em 0;
-    spacing: 0.35em;
+    spacing: 0.75em;
 }
 
-.aibar-provider .aibar-status {
-    padding: 0;
+.aibar-measurements {
+    spacing: 0.5em;
 }
 
 .aibar-details {
-    padding-top: 0.4em;
     spacing: 0.25em;
 }

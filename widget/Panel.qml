@@ -121,7 +121,7 @@ Ui.Panel {
     content: FocusScope {
       anchors.fill: parent
       property alias refreshButton: refresh
-      implicitHeight: header.implicitHeight + Commons.Style.spacing.md + sections.implicitHeight
+      implicitHeight: header.implicitHeight + popupLayout.spacing + sections.implicitHeight
 
       function resetScroll() {
         scroll.contentY = 0;
@@ -151,8 +151,9 @@ Ui.Panel {
       }
 
       ColumnLayout {
+        id: popupLayout
         anchors.fill: parent
-        spacing: Commons.Style.spacing.md
+        spacing: Commons.Style.spacing.xl
 
         ColumnLayout {
           id: header
@@ -161,10 +162,12 @@ Ui.Panel {
 
           RowLayout {
             Layout.fillWidth: true
+            spacing: Commons.Style.spacing.lg
+
             Label {
               Layout.fillWidth: true
               text: strings.t("title")
-              font.pixelSize: Commons.Style.font.body
+              font.pixelSize: Commons.Style.font.heading
               font.bold: true
             }
             Ui.Button {
@@ -182,20 +185,20 @@ Ui.Panel {
             }
           }
 
-          Label {
+          SupportingLabel {
             Layout.fillWidth: true
             visible: root.usage?.refreshing ?? false
             text: strings.t("refreshing")
           }
 
-          Label {
+          SupportingLabel {
             Layout.fillWidth: true
             visible: root.usage?.refreshFailed ?? false
             color: root.urgent
             text: strings.t("refreshFailed")
           }
 
-          Label {
+          SupportingLabel {
             Layout.fillWidth: true
             visible: root.usage?.invalidRecords ?? false
             color: root.urgent
@@ -240,7 +243,7 @@ Ui.Panel {
             readonly property real scrollbarSpace: scrollbar.width + Commons.Style.spacing.sm
             x: LayoutMirroring.enabled ? scrollbarSpace : 0
             width: Math.max(0, scroll.width - scrollbarSpace)
-            spacing: Commons.Style.spacing.md
+            spacing: Commons.Style.spacing.xxl
 
             Label {
               Layout.fillWidth: true
@@ -254,6 +257,7 @@ Ui.Panel {
 
               ColumnLayout {
                 id: section
+                required property int index
                 required property var modelData
                 readonly property var provider: modelData.record
                 readonly property bool failed: root.usage?.failedProviders[provider.id] === true
@@ -262,25 +266,27 @@ Ui.Panel {
                 readonly property double peak: Math.max(1, ...days.map(day => day.tokens ?? 0))
 
                 Layout.fillWidth: true
-                spacing: Commons.Style.spacing.sm
+                spacing: Commons.Style.spacing.xl
 
                 Ui.PanelSeparator {
                   Layout.fillWidth: true
+                  visible: section.index > 0
                   foreground: root.foreground
                 }
 
                 RowLayout {
                   Layout.fillWidth: true
-                  spacing: Commons.Style.space(10)
+                  spacing: Commons.Style.spacing.lg
 
                   ProviderIcon {
+                    Layout.alignment: Qt.AlignTop
                     providerId: section.provider.id
                   }
 
                   Label {
                     Layout.fillWidth: true
                     text: section.provider.name
-                    font.pixelSize: Commons.Style.font.body
+                    font.pixelSize: Commons.Style.font.title
                     font.bold: true
                     Accessible.role: Accessible.StaticText
                     Accessible.name: text
@@ -301,19 +307,19 @@ Ui.Panel {
                     required property var modelData
                     Layout.fillWidth: true
                     Layout.leftMargin: Commons.Style.spacing.md
-                    spacing: Commons.Style.spacing.sm
+                    spacing: Commons.Style.spacing.xs
 
                     Label {
                       Layout.fillWidth: true
                       text: account.modelData.name
                       font.bold: true
                     }
-                    Label {
+                    SupportingLabel {
                       Layout.fillWidth: true
                       visible: account.modelData.active
                       text: strings.t("active")
                     }
-                    Label {
+                    SupportingLabel {
                       Layout.fillWidth: true
                       visible: text !== ""
                       text: account.modelData.email
@@ -327,42 +333,10 @@ Ui.Panel {
                   }
                 }
 
-                Label {
+                SupportingLabel {
                   Layout.fillWidth: true
                   visible: !section.provider.hasActivity && !section.provider.limits.length && !section.provider.balance && !section.provider.accounts.length && !section.provider.status && !section.provider.help
                   text: strings.t("noDetails")
-                }
-
-                Ui.PanelSectionHeader {
-                  Layout.fillWidth: true
-                  visible: section.provider.hasActivity
-                  foreground: root.foreground
-                  fontFamily: root.fontFamily
-                  text: strings.t("today")
-                }
-
-                Label {
-                  Layout.fillWidth: true
-                  visible: section.provider.hasActivity
-                  text: {
-                    const readings = [];
-                    const todayTokens = section.days[6].tokens;
-                    if (todayTokens !== null)
-                      readings.push(root.counted("tokens", todayTokens));
-                    if (section.updatedToday && section.provider.todayPrompts !== null)
-                      readings.push(root.counted("prompts", section.provider.todayPrompts));
-                    if (section.updatedToday && section.provider.todaySessions !== null)
-                      readings.push(root.counted("sessions", section.provider.todaySessions));
-                    return readings.length ? readings.join(" · ") : strings.t("unavailable");
-                  }
-                }
-
-                Ui.PanelSectionHeader {
-                  Layout.fillWidth: true
-                  visible: section.provider.hasActivity
-                  foreground: root.foreground
-                  fontFamily: root.fontFamily
-                  text: strings.t("history")
                 }
 
                 ColumnLayout {
@@ -370,28 +344,80 @@ Ui.Panel {
                   visible: section.provider.hasActivity
                   spacing: Commons.Style.spacing.xs
 
+                  SectionHeading {
+                    Layout.fillWidth: true
+                    text: strings.t("today")
+                  }
+
+                  Label {
+                    Layout.fillWidth: true
+                    text: {
+                      const readings = [];
+                      const todayTokens = section.days[6].tokens;
+                      if (todayTokens !== null)
+                        readings.push(root.counted("tokens", todayTokens));
+                      if (section.updatedToday && section.provider.todayPrompts !== null)
+                        readings.push(root.counted("prompts", section.provider.todayPrompts));
+                      if (section.updatedToday && section.provider.todaySessions !== null)
+                        readings.push(root.counted("sessions", section.provider.todaySessions));
+                      return readings.length ? readings.join(" · ") : strings.t("unavailable");
+                    }
+                  }
+                }
+
+                ColumnLayout {
+                  id: historyGroup
+                  readonly property var dateLabels: section.days.map(day => day.date.toLocaleDateString(root.locale, "ddd"))
+                  readonly property var countLabels: section.days.map(day => day.tokens === null ? strings.t("noData") : root.formatCount(day.tokens))
+                  readonly property real dateWidth: Math.min(width * 0.24, dateMeasure.implicitWidth)
+                  readonly property real countWidth: Math.min(width * 0.38, countMeasure.implicitWidth)
+                  Layout.fillWidth: true
+                  visible: section.provider.hasActivity
+                  spacing: Commons.Style.spacing.xs
+
+                  // Measure the widest label in each column using the displayed font.
+                  SupportingLabel {
+                    id: dateMeasure
+                    visible: false
+                    wrapMode: Text.NoWrap
+                    text: historyGroup.dateLabels.join("\n")
+                  }
+
+                  SupportingLabel {
+                    id: countMeasure
+                    visible: false
+                    wrapMode: Text.NoWrap
+                    text: historyGroup.countLabels.join("\n")
+                  }
+
+                  SectionHeading {
+                    Layout.fillWidth: true
+                    text: strings.t("history")
+                  }
+
                   Repeater {
                     model: section.provider.hasActivity ? section.days : []
                     delegate: RowLayout {
+                      id: dayRow
+                      required property int index
                       required property var modelData
                       Layout.fillWidth: true
-                      spacing: Commons.Style.spacing.md
-                      readonly property string dateLabel: modelData.date.toLocaleDateString(root.locale, "ddd")
+                      spacing: Commons.Style.spacing.lg
                       readonly property string fullDate: modelData.date.toLocaleDateString(root.locale, Locale.LongFormat)
                       Accessible.role: Accessible.StaticText
                       Accessible.name: modelData.tokens === null ? strings.t("noHistoryForDate").arg(fullDate) : strings.t("historyForDate").arg(fullDate).arg(root.counted("tokens", modelData.tokens))
 
-                      Label {
-                        Layout.preferredWidth: scroll.width * 0.15
-                        text: parent.dateLabel
+                      SupportingLabel {
+                        Layout.preferredWidth: historyGroup.dateWidth
+                        text: historyGroup.dateLabels[dayRow.index]
                       }
                       Meter {
                         Layout.fillWidth: true
-                        fraction: (parent.modelData.tokens ?? 0) / section.peak
+                        fraction: (dayRow.modelData.tokens ?? 0) / section.peak
                       }
-                      Label {
-                        Layout.preferredWidth: scroll.width * 0.35
-                        text: parent.modelData.tokens === null ? strings.t("noData") : root.formatCount(parent.modelData.tokens)
+                      SupportingLabel {
+                        Layout.preferredWidth: historyGroup.countWidth
+                        text: historyGroup.countLabels[dayRow.index]
                         horizontalAlignment: Text.AlignRight
                       }
                     }
@@ -410,7 +436,18 @@ Ui.Panel {
     wrapMode: Text.Wrap
     color: root.foreground
     font.family: root.fontFamily
+    font.pixelSize: Commons.Style.font.body
+  }
+
+  component SupportingLabel: Label {
     font.pixelSize: Commons.Style.font.bodySmall
+  }
+
+  component SectionHeading: Ui.PanelSectionHeader {
+    color: root.foreground
+    fontFamily: root.fontFamily
+    fontSize: Commons.Style.font.body
+    wrapMode: Text.Wrap
   }
 
   component ProviderIcon: Item {
@@ -418,7 +455,7 @@ Ui.Panel {
     required property string providerId
     readonly property string asset: root.providerAssets + providerId
 
-    implicitWidth: Commons.Style.font.heading
+    implicitWidth: Commons.Style.font.iconLarge
     implicitHeight: implicitWidth
     Accessible.ignored: true
 
@@ -432,11 +469,14 @@ Ui.Panel {
       source: !root.lightPopup || lightLogo.status === Image.Error ? icon.asset + ".svg" : ""
     }
 
-    Label {
-      anchors.centerIn: parent
+    Ui.OpticalGlyph {
+      anchors.fill: parent
       visible: lightLogo.status !== Image.Ready && defaultLogo.status !== Image.Ready
       text: barButton.text
-      font.pixelSize: Commons.Style.font.heading
+      color: root.foreground
+      fontFamily: root.fontFamily
+      fontSize: icon.implicitWidth
+      paintedSize: icon.implicitWidth
       Accessible.ignored: true
     }
   }
@@ -481,9 +521,10 @@ Ui.Panel {
     required property var dataItem
     required property bool sourceFailed
     required property var fallbackTime
-    spacing: Commons.Style.spacing.sm
+    visible: dataItem.plan !== "" || dataItem.limits.length > 0 || dataItem.balance !== null || dataItem.resetCredits > 0 || sourceFailed || dataItem.stale || dataItem.status !== "" || dataItem.help !== ""
+    spacing: Commons.Style.spacing.md
 
-    Label {
+    SupportingLabel {
       Layout.fillWidth: true
       visible: text !== ""
       text: details.dataItem.plan
@@ -499,12 +540,18 @@ Ui.Panel {
 
         RowLayout {
           Layout.fillWidth: true
+          spacing: Commons.Style.spacing.lg
+
           Label {
             Layout.fillWidth: true
             text: limit.modelData.label || strings.t("limit")
           }
           Label {
+            Layout.alignment: Qt.AlignTop
+            Layout.maximumWidth: popup.contentWidth * 0.42
             text: strings.t("percentUsed").arg(root.formatCount(Math.round(limit.modelData.percent * 100)))
+            font.bold: true
+            horizontalAlignment: Text.AlignRight
           }
         }
         Meter {
@@ -512,7 +559,7 @@ Ui.Panel {
           fraction: limit.modelData.percent
           alarming: fraction >= 0.9
         }
-        Label {
+        SupportingLabel {
           Layout.fillWidth: true
           visible: text !== ""
           text: root.resetText(limit.modelData.reset)
@@ -529,6 +576,7 @@ Ui.Panel {
       Label {
         Layout.fillWidth: true
         text: parent.balance ? strings.t("remaining").arg(root.money(parent.balance.remaining, parent.balance.currency)) : ""
+        font.bold: true
       }
       Meter {
         Layout.fillWidth: true
@@ -536,7 +584,7 @@ Ui.Panel {
         fraction: visible ? parent.balance.remaining / parent.balance.funded : 0
         alarming: visible && fraction <= 0.1
       }
-      Label {
+      SupportingLabel {
         Layout.fillWidth: true
         visible: text !== ""
         text: {
@@ -552,7 +600,7 @@ Ui.Panel {
       text: visible ? root.counted("resetCredits", details.dataItem.resetCredits) : ""
     }
 
-    Label {
+    SupportingLabel {
       Layout.fillWidth: true
       visible: details.sourceFailed || details.dataItem.stale
       text: visible ? root.staleText(details.dataItem.fetched ?? details.fallbackTime) : ""
@@ -565,7 +613,7 @@ Ui.Panel {
       text: details.dataItem.status
     }
 
-    Label {
+    SupportingLabel {
       Layout.fillWidth: true
       visible: text !== ""
       text: details.dataItem.help

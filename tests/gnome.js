@@ -68,14 +68,20 @@ export async function run() {
 
     GLib.mkdir_with_parents(directory, 0o700);
     const now = new Date();
+    const longLimit = 'Weekly allowance for the shared account with additional capacity during the current reporting period';
+    const prompts = 123456789012345;
+    const promptCount = new Intl.NumberFormat().format(prompts);
     const record = {
         schemaVersion: 1, id: 'demo', ready: true, name: '<b>Demo</b>', tierLabel: 'Trial',
         updatedAt: now.toISOString(),
-        limits: [{label: '5h window', percent: 0.37, resetsAt: +now + 120000}],
+        limits: [
+            {label: '5h window', percent: 0.37, resetsAt: +now + 120000},
+            {label: longLimit, percent: 0.91},
+        ],
         balance: {remaining: 8.5, funded: 10, spent: 1.5, currency: 'USD'},
         resetCredits: {available: 0},
         accounts: [{id: 'work', label: 'Work', email: 'work@example.invalid', active: true}],
-        todayTotalTokens: 0, todayPrompts: 12, todaySessions: 3,
+        todayTotalTokens: 0, todayPrompts: prompts, todaySessions: 3,
     };
     function replace(text) {
         const staging = GLib.build_filenamev([directory, 'demo.tmp']);
@@ -88,9 +94,21 @@ export async function run() {
     await until(() => findText('37%'), 'Keyboard reload did not find a newly created record');
     assert(menu().isOpen, 'Reload closed the menu');
     for (const expected of ['<b>Demo</b>', 'Trial', '8.50 USD', 'Reset credits', 'Work',
-        'work@example.invalid', 'Active account', 'Today', '12', 'Last 7 days · Tokens', '0', '—'])
+        'work@example.invalid', 'Active account', 'Today', promptCount, 'Last 7 days · Tokens', '0', '—'])
         assert(findText(expected), `Missing reading ${expected}`);
     assert(!findText('<b>Demo</b>').clutter_text.use_markup, 'Provider heading uses markup');
+    const limitLabel = findText(longLimit);
+    const limitValue = findText('91%');
+    await until(() => limitLabel.clutter_text.get_layout().get_line_count() > 1,
+        'Long quota label did not wrap');
+    const [labelX] = limitLabel.get_transformed_position();
+    const [valueX] = limitValue.get_transformed_position();
+    assert(labelX + limitLabel.width <= valueX,
+        'Long quota label overlaps its percentage');
+    const shortValue = findText('37%');
+    const [shortValueX] = shortValue.get_transformed_position();
+    assert(Math.abs(valueX + limitValue.width - shortValueX - shortValue.width) <= 1,
+        'Quota percentages do not share a right edge');
     const oldClock = clock();
     assert(oldClock, 'Missing reset countdown');
     await until(() => clock() !== oldClock, 'Countdown did not tick');

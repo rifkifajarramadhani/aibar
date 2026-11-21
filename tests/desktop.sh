@@ -117,7 +117,8 @@ capture() {
   local top=${4:-0}
   magick "$test_root/$name.png" -crop "${crop_width}x${height}+$((width - crop_width))+$top" +repage \
     -resize 200% "$test_root/$name-crop.png"
-  tesseract "$test_root/$name-crop.png" "$test_root/$name" --psm 6 txt tsv 2>/dev/null
+  # Column mode recognizes countdowns tucked beneath their meters.
+  tesseract "$test_root/$name-crop.png" "$test_root/$name" --psm 4 txt tsv 2>/dev/null
 }
 
 check() {
@@ -231,7 +232,7 @@ sleep 0.6
 capture "$second" empty 78 63
 check empty 'No usage records yet'
 
-if rg -n 'Plugin widget overhaul.aibar failed|service plugin load failed for overhaul.aibar|overhaul.aibar/widget/.*(TypeError|ReferenceError)' "$test_root/shell.log"; then
+if rg -n 'Plugin widget overhaul.aibar failed|service plugin load failed for overhaul.aibar|overhaul.aibar/widget/.*(TypeError|ReferenceError|Binding loop|recursive rearrange)' "$test_root/shell.log"; then
   exit 1
 fi
 echo "Verified the native popup on two outputs, provider icons, live themes, keyboard, countdown, and partial refresh." >&3
