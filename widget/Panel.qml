@@ -6,7 +6,7 @@ import QtQuick.Layouts
 import Quickshell
 import qs.Commons as Commons
 import qs.Ui as Ui
-import "Records.js" as Records
+import "Records.mjs" as Records
 
 Ui.Panel {
   id: root

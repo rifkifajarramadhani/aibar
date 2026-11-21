@@ -1,6 +1,9 @@
-.pragma library
+export const maxRecordBytes = 2 * 1024 * 1024
 
-const maxRecordBytes = 2 * 1024 * 1024
+export function recordId(filename) {
+  const match = /^([a-zA-Z0-9][a-zA-Z0-9_.-]{0,63})\.json$/.exec(filename)
+  return match ? match[1] : null
+}
 
 function object(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -55,7 +58,7 @@ function details(item, plan, stale, fetched) {
   }
 }
 
-function parse(text, id) {
+export function parse(text, id) {
   if (text.length > maxRecordBytes) return null
   let item
   try {
@@ -96,22 +99,12 @@ function parse(text, id) {
   return { record: available ? record : null }
 }
 
-function listing(output) {
-  const fields = output.split("\0")
-  const files = Object.create(null)
-  for (let i = 0; i + 1 < fields.length && i < 256; i += 2) {
-    const match = /^([a-zA-Z0-9][a-zA-Z0-9_.-]{0,63})\.json$/.exec(fields[i])
-    if (match) files[match[1]] = Number(fields[i + 1]) <= maxRecordBytes
-  }
-  return files
-}
-
 function dayKey(date) {
   return String(date.getFullYear()).padStart(4, "0") + "-" + String(date.getMonth() + 1).padStart(2, "0")
     + "-" + String(date.getDate()).padStart(2, "0")
 }
 
-function history(record, now) {
+export function history(record, now) {
   const today = new Date(now)
   const includeToday = record.updated !== null && dayKey(new Date(record.updated)) === dayKey(today)
   const days = []
@@ -123,7 +116,7 @@ function history(record, now) {
   return days
 }
 
-function countdown(reset, now) {
+export function countdown(reset, now) {
   if (reset === null) return null
   const seconds = Math.max(0, Math.ceil((reset - now) / 1000))
   return {

@@ -8,7 +8,8 @@ points.
 
 - `widget/Panel.qml` draws the bar button and popup using Omarchy's shared UI.
 - `widget/Usage.qml` is the shared service for refresh and record discovery.
-- `widget/Records.js` validates and normalizes version 1 usage records.
+- `widget/Records.mjs` validates and normalizes version 1 usage records.
+- `widget/OmarchyFiles.mjs` decodes Omarchy's file discovery output.
 - `widget/i18n/` contains aibar's translation catalogs.
 - `tests/` contains synthetic records, parser tests, and the isolated
   desktop smoke test.
@@ -23,7 +24,7 @@ Read [the project overview](docs/PROJECT_OVERVIEW.md) for the runtime and
 node --test tests/records.test.mjs
 omarchy plugin validate .
 /usr/lib/qt6/bin/qmlformat -w 2 -i widget/*.qml
-/usr/lib/qt6/bin/qmllint widget/Usage.qml widget/Records.js
+/usr/lib/qt6/bin/qmllint widget/Usage.qml widget/Records.mjs widget/OmarchyFiles.mjs
 bash -n tests/desktop.sh
 tests/desktop.sh
 ```

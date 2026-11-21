@@ -1,15 +1,9 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { runInThisContext } from 'node:vm'
+import { parse, history, countdown } from '../widget/Records.mjs'
+import { listing } from '../widget/OmarchyFiles.mjs'
 import { records } from './fixtures.mjs'
 
-const source = readFileSync(new URL('../widget/Records.js', import.meta.url), 'utf8')
-const { parse, history, countdown, listing } = runInThisContext(
-  `(() => {${source.replace(/^\.pragma library/m, '')}
-    return { parse, history, countdown, listing }
-  })()`
-)
 const now = new Date(2026, 10, 20, 23, 58)
 const fixtures = records(now)
 const provider = id => parse(JSON.stringify(fixtures[id]), id).record
@@ -71,6 +65,9 @@ test('rejects invalid records and fields while preserving valid siblings', () =>
   assert.equal(record.limits.length, 1)
   assert.equal(record.balance, null)
   assert.deepEqual(record.accounts, [])
+})
+
+test('decodes Omarchy file discovery output', () => {
   assert.deepEqual(Object.entries(listing(['codex.json', '10', '../invalid.json', '12', 'large.json', '2097153', ''].join('\0'))),
     [['codex', true], ['large', false]])
 })

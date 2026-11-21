@@ -27,7 +27,7 @@ a removed file drops out of the display.
 
 ## Record contract
 
-[`Records.js`](../widget/Records.js) validates version 1 records from
+[`Records.mjs`](../widget/Records.mjs) validates version 1 records from
 `${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage/`. A record's ID
 must match its filename. Provider discovery comes from those files, including
 records for providers added after aibar was released.

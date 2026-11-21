@@ -4,7 +4,8 @@ import QtQml.Models
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "Records.js" as Records
+import "OmarchyFiles.mjs" as OmarchyFiles
+import "Records.mjs" as Records
 
 Item {
   id: root
@@ -134,7 +135,7 @@ Item {
     }
     onExited: (code, status) => {
       if (code === 0 && status === 0)
-        root.setFiles(Records.listing(listing.text));
+        root.setFiles(OmarchyFiles.listing(listing.text));
       if (root.scanPending) {
         root.scanPending = false;
         Qt.callLater(root.scan);
