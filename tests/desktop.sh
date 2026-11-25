@@ -158,23 +158,23 @@ check dark 'Claude Code'
 check dark 'Some usage records could not be read'
 check dark 'Stale.*updated'
 check dark '<img src='
-check dark '37% used'
-check dark 'Resets in [0-9]+m [0-5]?[0-9]s'
+check dark '37%'
+check dark '[0-9]+m [0-5]?[0-9]s'
 check_icon dark claude '#D97757'
 check_icon dark 'c?codex' '#FFFFFF'
 sleep 1.2
 capture "$first" countdown
-reset_line='Resets in [0-9]+m [0-5]?[0-9]s'
+reset_line='[0-9]+m [0-5]?[0-9]s'
 [[ $(rg -im1 "$reset_line" "$test_root/dark.txt") != $(rg -im1 "$reset_line" "$test_root/countdown.txt") ]]
 
 wtype -k End
 sleep 0.3
 capture "$first" end
-check end 'USD remaining'
+check end 'Balance.*USD'
 check end 'Hermes'
 check end 'Waiting for auth'
 check end 'Test Provider'
-check end 'Both Monitors'
+check end 'Monitors'
 dark_text=$(sed -n 's/^foreground = "\(#.*\)"/\1/p' "$theme/colors.toml")
 check_icon end test "$dark_text"
 
@@ -185,7 +185,7 @@ sleep 0.2
 capture "$first" failed
 check failed 'Some usage could not be refreshed'
 check failed 'Claude Code'
-check failed '55% used'
+check failed '55%'
 
 dark_color=$(sed -n 's/^background = "\(#.*\)"/\1/p' "$theme/colors.toml")
 cp "$OMARCHY_PATH/themes/catppuccin-latte/colors.toml" "$theme/colors.toml"
@@ -202,7 +202,7 @@ wtype -k End
 sleep 0.3
 capture "$first" light_end
 check light_end 'Test Provider'
-check light_end 'Both Monitors'
+check light_end 'Monitors'
 light_text=$(sed -n 's/^foreground = "\(#.*\)"/\1/p' "$theme/colors.toml")
 check_icon light_end test "$light_text"
 

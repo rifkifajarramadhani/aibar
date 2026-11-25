@@ -17,7 +17,17 @@ Ui.Panel {
 
   readonly property var usage: bar?.shell?.serviceFor(moduleName) ?? null
   readonly property color foreground: Commons.Color.popups.text
+  // Secondary text. Dark popups match the stock Agents popup; on light
+  // popups darkening would make captions heavier than body text, so they
+  // fade toward the background instead.
+  readonly property color dim: {
+    if (!lightPopup)
+      return Qt.darker(foreground, 1.55);
+    const back = Commons.Color.popups.background;
+    return Qt.rgba(foreground.r * 0.6 + back.r * 0.4, foreground.g * 0.6 + back.g * 0.4, foreground.b * 0.6 + back.b * 0.4, 1);
+  }
   readonly property color urgent: Commons.Color.urgent
+  readonly property color accent: Commons.Color.accent
   readonly property string fontFamily: bar?.fontFamily || Commons.Style.font.family
   readonly property var locale: Qt.locale(Commons.I18n.formatLocale)
   readonly property string providerAssets: "file://" + Quickshell.env("OMARCHY_PATH") + "/shell/plugins/agents/assets/"
@@ -31,9 +41,20 @@ Ui.Panel {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
   }
 
+  // Value columns are sized to their widest expected text so every meter in
+  // the popup ends at the same place.
+  readonly property real percentWidth: Math.ceil(percentMetrics.advanceWidth)
+  readonly property real timeWidth: Math.ceil(timeMetrics.advanceWidth)
+  readonly property real columnGap: Commons.Style.space(10)
+  readonly property real valueWidth: percentWidth + columnGap + timeWidth
+
   // Match the relative luminance threshold used by the stock Agents popup.
   function linearChannel(channel) {
     return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+  }
+
+  function alpha(color, value) {
+    return Qt.rgba(color.r, color.g, color.b, value);
   }
 
   function formatCount(value) {
@@ -48,26 +69,48 @@ Ui.Panel {
     return Commons.I18n.formatNumber(value, 2) + " " + currency;
   }
 
-  function resetText(reset) {
+  function percentText(fraction) {
+    return strings.t("percent").arg(formatCount(Math.round(fraction * 100)));
+  }
+
+  // The time left before a limit resets, short enough for its column.
+  function resetClock(reset) {
     const duration = Records.countdown(reset, now);
     if (!duration)
       return "";
     if (duration.seconds === 0)
-      return strings.t("resetPassed");
-    let clock;
+      return strings.t("resetNow");
     if (duration.days > 0)
-      clock = strings.t("durationDaysHours").arg(formatCount(duration.days)).arg(formatCount(duration.hours));
-    else if (duration.hours > 0)
-      clock = strings.t("durationHoursMinutes").arg(formatCount(duration.hours)).arg(formatCount(duration.minutes));
-    else if (duration.minutes > 0)
-      clock = strings.t("durationMinutesSeconds").arg(formatCount(duration.minutes)).arg(formatCount(duration.seconds % 60));
-    else
-      clock = strings.t("durationSeconds").arg(formatCount(duration.seconds));
-    return strings.t("resetIn").arg(clock);
+      return strings.t("durationDaysHours").arg(formatCount(duration.days)).arg(formatCount(duration.hours));
+    if (duration.hours > 0)
+      return strings.t("durationHoursMinutes").arg(formatCount(duration.hours)).arg(formatCount(duration.minutes));
+    if (duration.minutes > 0)
+      return strings.t("durationMinutesSeconds").arg(formatCount(duration.minutes)).arg(formatCount(duration.seconds % 60));
+    return strings.t("durationSeconds").arg(formatCount(duration.seconds));
+  }
+
+  function limitDescription(limit) {
+    const name = limit.label || strings.t("limit");
+    const used = strings.t("percentUsed").arg(formatCount(Math.round(limit.percent * 100)));
+    const clock = resetClock(limit.reset);
+    if (clock === "")
+      return strings.t("limitSummary").arg(name).arg(used);
+    if (Records.countdown(limit.reset, now).seconds === 0)
+      return strings.t("limitSummary").arg(name).arg(used) + " · " + strings.t("resetPassed");
+    return strings.t("limitSummary").arg(name).arg(used) + " · " + strings.t("resetIn").arg(clock);
   }
 
   function staleText(timestamp) {
     return timestamp === null ? strings.t("staleUnknown") : strings.t("stale").arg(new Date(timestamp).toLocaleString(locale, Locale.ShortFormat));
+  }
+
+  function heroMeta() {
+    if (!usage)
+      return "";
+    if (usage.refreshing)
+      return strings.t("refreshing");
+    const count = usage.providers.length;
+    return count > 0 ? counted("providers", count) : "";
   }
 
   onOpenedChanged: if (opened) {
@@ -88,6 +131,21 @@ Ui.Panel {
   Commons.Translations {
     id: strings
     directory: Qt.resolvedUrl("i18n")
+  }
+
+  TextMetrics {
+    id: percentMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Commons.Style.font.bodySmall
+    font.bold: true
+    text: "100%"
+  }
+
+  TextMetrics {
+    id: timeMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Commons.Style.font.bodySmall
+    text: "00m 00s"
   }
 
   Ui.BarIconButton {
@@ -115,8 +173,8 @@ Ui.Panel {
     bar: root.bar
     open: root.opened
     focusTarget: loadedContent?.refreshButton ?? null
-    contentWidth: fittedContentWidth(Commons.Style.space(424))
-    contentHeight: fittedContentHeight(loadedContentHeight, Commons.Style.space(720))
+    contentWidth: fittedContentWidth(Commons.Style.space(380))
+    contentHeight: fittedContentHeight(loadedContentHeight, Commons.Style.space(860))
 
     content: FocusScope {
       anchors.fill: parent
@@ -128,8 +186,8 @@ Ui.Panel {
       }
 
       Keys.onEscapePressed: root.close()
-      Keys.onUpPressed: scroll.step(-Commons.Style.space(44))
-      Keys.onDownPressed: scroll.step(Commons.Style.space(44))
+      Keys.onUpPressed: scroll.step(-Commons.Style.space(56))
+      Keys.onDownPressed: scroll.step(Commons.Style.space(56))
       Keys.onPressed: event => {
         switch (event.key) {
         case Qt.Key_PageUp:
@@ -153,52 +211,89 @@ Ui.Panel {
       ColumnLayout {
         id: popupLayout
         anchors.fill: parent
-        spacing: Commons.Style.spacing.xl
+        spacing: Commons.Style.space(16)
 
+        // Hero: glyph, title, status caption, and refresh, as in the stock
+        // Agents popup. It stays put while the providers scroll.
         ColumnLayout {
           id: header
           Layout.fillWidth: true
-          spacing: Commons.Style.spacing.sm
+          spacing: Commons.Style.space(10)
 
           RowLayout {
             Layout.fillWidth: true
-            spacing: Commons.Style.spacing.lg
+            spacing: 0
 
-            Label {
-              Layout.fillWidth: true
-              text: strings.t("title")
-              font.pixelSize: Commons.Style.font.heading
-              font.bold: true
+            Text {
+              textFormat: Text.PlainText
+              text: barButton.text
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Commons.Style.font.display
+              Accessible.ignored: true
             }
+
+            ColumnLayout {
+              Layout.fillWidth: true
+              Layout.leftMargin: Commons.Style.space(14)
+              Layout.rightMargin: Commons.Style.space(12)
+              Layout.alignment: Qt.AlignVCenter
+              spacing: Commons.Style.space(2)
+
+              Label {
+                Layout.fillWidth: true
+                text: strings.t("title")
+                font.pixelSize: Commons.Style.font.title
+                font.bold: true
+                wrapMode: Text.NoWrap
+                elide: Text.ElideRight
+              }
+
+              Label {
+                Layout.fillWidth: true
+                visible: text !== ""
+                text: root.heroMeta().toUpperCase()
+                color: root.dim
+                font.pixelSize: Commons.Style.font.caption
+                font.bold: true
+                font.letterSpacing: 1.2
+                wrapMode: Text.NoWrap
+                elide: Text.ElideRight
+              }
+            }
+
             Ui.Button {
               id: refresh
-              text: strings.t("refresh")
-              foreground: root.foreground
+              implicitWidth: Commons.Style.space(34)
+              implicitHeight: implicitWidth
+              horizontalPadding: 0
+              verticalPadding: 0
+              iconText: "󰑐"
+              iconSize: Commons.Style.font.heading
+              iconSpinning: root.usage?.refreshing ?? false
+              tooltipText: strings.t("refresh")
+              foreground: root.accent
+              background: root.alpha(root.accent, 0.12)
               fontFamily: root.fontFamily
               focusable: true
               enabled: root.usage !== null
               Accessible.role: Accessible.Button
-              Accessible.name: text
+              Accessible.name: tooltipText
               Accessible.onPressAction: clicked()
               onClicked: if (root.usage)
                 root.usage.request(root.usage.manual)
             }
           }
 
-          SupportingLabel {
-            Layout.fillWidth: true
-            visible: root.usage?.refreshing ?? false
-            text: strings.t("refreshing")
-          }
-
-          SupportingLabel {
+          // Failures stay readable as sentences, not only as hero caps.
+          Caption {
             Layout.fillWidth: true
             visible: root.usage?.refreshFailed ?? false
             color: root.urgent
             text: strings.t("refreshFailed")
           }
 
-          SupportingLabel {
+          Caption {
             Layout.fillWidth: true
             visible: root.usage?.invalidRecords ?? false
             color: root.urgent
@@ -240,10 +335,11 @@ Ui.Panel {
 
           ColumnLayout {
             id: sections
-            readonly property real scrollbarSpace: scrollbar.width + Commons.Style.spacing.sm
+            // Only a scrolling list gives up a strip to its scroll bar.
+            readonly property real scrollbarSpace: scroll.interactive ? scrollbar.width + Commons.Style.space(6) : 0
             x: LayoutMirroring.enabled ? scrollbarSpace : 0
             width: Math.max(0, scroll.width - scrollbarSpace)
-            spacing: Commons.Style.spacing.xxl
+            spacing: Commons.Style.space(16)
 
             Label {
               Layout.fillWidth: true
@@ -266,17 +362,16 @@ Ui.Panel {
                 readonly property double peak: Math.max(1, ...days.map(day => day.tokens ?? 0))
 
                 Layout.fillWidth: true
-                spacing: Commons.Style.spacing.xl
+                spacing: Commons.Style.space(16)
 
                 Ui.PanelSeparator {
                   Layout.fillWidth: true
-                  visible: section.index > 0
                   foreground: root.foreground
                 }
 
                 RowLayout {
                   Layout.fillWidth: true
-                  spacing: Commons.Style.spacing.lg
+                  spacing: Commons.Style.space(10)
 
                   ProviderIcon {
                     Layout.alignment: Qt.AlignTop
@@ -286,10 +381,20 @@ Ui.Panel {
                   Label {
                     Layout.fillWidth: true
                     text: section.provider.name
-                    font.pixelSize: Commons.Style.font.title
                     font.bold: true
                     Accessible.role: Accessible.StaticText
                     Accessible.name: text
+                  }
+
+                  Caption {
+                    Layout.alignment: Qt.AlignTop
+                    Layout.topMargin: Math.max(0, (Commons.Style.font.body - Commons.Style.font.caption) / 2)
+                    Layout.maximumWidth: section.width * 0.35
+                    visible: text !== ""
+                    text: section.provider.plan
+                    wrapMode: Text.NoWrap
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignRight
                   }
                 }
 
@@ -306,24 +411,35 @@ Ui.Panel {
                     id: account
                     required property var modelData
                     Layout.fillWidth: true
-                    Layout.leftMargin: Commons.Style.spacing.md
-                    spacing: Commons.Style.spacing.xs
+                    spacing: Commons.Style.space(12)
 
-                    Label {
+                    RowLayout {
                       Layout.fillWidth: true
-                      text: account.modelData.name
-                      font.bold: true
+                      spacing: Commons.Style.space(8)
+
+                      Label {
+                        Layout.maximumWidth: account.width * 0.5
+                        text: account.modelData.name
+                        font.bold: account.modelData.active
+                        wrapMode: Text.NoWrap
+                        elide: Text.ElideRight
+                      }
+                      Caption {
+                        Layout.fillWidth: true
+                        text: [account.modelData.email, account.modelData.plan].filter(part => part !== "").join(" · ")
+                        wrapMode: Text.NoWrap
+                        elide: Text.ElideRight
+                      }
+                      Caption {
+                        visible: account.modelData.active
+                        text: strings.t("active").toUpperCase()
+                        color: root.foreground
+                        font.bold: true
+                        font.letterSpacing: 1.2
+                        wrapMode: Text.NoWrap
+                      }
                     }
-                    SupportingLabel {
-                      Layout.fillWidth: true
-                      visible: account.modelData.active
-                      text: strings.t("active")
-                    }
-                    SupportingLabel {
-                      Layout.fillWidth: true
-                      visible: text !== ""
-                      text: account.modelData.email
-                    }
+
                     Details {
                       Layout.fillWidth: true
                       dataItem: account.modelData
@@ -333,7 +449,7 @@ Ui.Panel {
                   }
                 }
 
-                SupportingLabel {
+                Caption {
                   Layout.fillWidth: true
                   visible: !section.provider.hasActivity && !section.provider.limits.length && !section.provider.balance && !section.provider.accounts.length && !section.provider.status && !section.provider.help
                   text: strings.t("noDetails")
@@ -342,14 +458,14 @@ Ui.Panel {
                 ColumnLayout {
                   Layout.fillWidth: true
                   visible: section.provider.hasActivity
-                  spacing: Commons.Style.spacing.xs
+                  spacing: Commons.Style.space(6)
 
                   SectionHeading {
                     Layout.fillWidth: true
                     text: strings.t("today")
                   }
 
-                  Label {
+                  SmallLabel {
                     Layout.fillWidth: true
                     text: {
                       const readings = [];
@@ -366,29 +482,9 @@ Ui.Panel {
                 }
 
                 ColumnLayout {
-                  id: historyGroup
-                  readonly property var dateLabels: section.days.map(day => day.date.toLocaleDateString(root.locale, "ddd"))
-                  readonly property var countLabels: section.days.map(day => day.tokens === null ? strings.t("noData") : root.formatCount(day.tokens))
-                  readonly property real dateWidth: Math.min(width * 0.24, dateMeasure.implicitWidth)
-                  readonly property real countWidth: Math.min(width * 0.38, countMeasure.implicitWidth)
                   Layout.fillWidth: true
                   visible: section.provider.hasActivity
-                  spacing: Commons.Style.spacing.xs
-
-                  // Measure the widest label in each column using the displayed font.
-                  SupportingLabel {
-                    id: dateMeasure
-                    visible: false
-                    wrapMode: Text.NoWrap
-                    text: historyGroup.dateLabels.join("\n")
-                  }
-
-                  SupportingLabel {
-                    id: countMeasure
-                    visible: false
-                    wrapMode: Text.NoWrap
-                    text: historyGroup.countLabels.join("\n")
-                  }
+                  spacing: Commons.Style.space(8)
 
                   SectionHeading {
                     Layout.fillWidth: true
@@ -397,29 +493,17 @@ Ui.Panel {
 
                   Repeater {
                     model: section.provider.hasActivity ? section.days : []
-                    delegate: RowLayout {
+                    delegate: ValueRow {
                       id: dayRow
-                      required property int index
                       required property var modelData
-                      Layout.fillWidth: true
-                      spacing: Commons.Style.spacing.lg
                       readonly property string fullDate: modelData.date.toLocaleDateString(root.locale, Locale.LongFormat)
-                      Accessible.role: Accessible.StaticText
-                      Accessible.name: modelData.tokens === null ? strings.t("noHistoryForDate").arg(fullDate) : strings.t("historyForDate").arg(fullDate).arg(root.counted("tokens", modelData.tokens))
-
-                      SupportingLabel {
-                        Layout.preferredWidth: historyGroup.dateWidth
-                        text: historyGroup.dateLabels[dayRow.index]
-                      }
-                      Meter {
-                        Layout.fillWidth: true
-                        fraction: (dayRow.modelData.tokens ?? 0) / section.peak
-                      }
-                      SupportingLabel {
-                        Layout.preferredWidth: historyGroup.countWidth
-                        text: historyGroup.countLabels[dayRow.index]
-                        horizontalAlignment: Text.AlignRight
-                      }
+                      Layout.fillWidth: true
+                      label: modelData.date.toLocaleDateString(root.locale, "ddd")
+                      fraction: (modelData.tokens ?? 0) / section.peak
+                      value: modelData.tokens === null ? strings.t("noData") : root.formatCount(modelData.tokens)
+                      valueColor: root.dim
+                      valueBold: false
+                      description: modelData.tokens === null ? strings.t("noHistoryForDate").arg(fullDate) : strings.t("historyForDate").arg(fullDate).arg(root.counted("tokens", modelData.tokens))
                     }
                   }
                 }
@@ -439,14 +523,18 @@ Ui.Panel {
     font.pixelSize: Commons.Style.font.body
   }
 
-  component SupportingLabel: Label {
+  component SmallLabel: Label {
     font.pixelSize: Commons.Style.font.bodySmall
   }
 
+  component Caption: Label {
+    color: root.dim
+    font.pixelSize: Commons.Style.font.caption
+  }
+
   component SectionHeading: Ui.PanelSectionHeader {
-    color: root.foreground
+    foreground: root.foreground
     fontFamily: root.fontFamily
-    fontSize: Commons.Style.font.body
     wrapMode: Text.Wrap
   }
 
@@ -455,7 +543,7 @@ Ui.Panel {
     required property string providerId
     readonly property string asset: root.providerAssets + providerId
 
-    implicitWidth: Commons.Style.font.iconLarge
+    implicitWidth: Commons.Style.font.heading
     implicitHeight: implicitWidth
     Accessible.ignored: true
 
@@ -498,7 +586,7 @@ Ui.Panel {
 
     Rectangle {
       anchors.fill: parent
-      color: Commons.Style.selectedFillFor(root.foreground, Commons.Color.accent)
+      color: Commons.Style.selectedFillFor(root.foreground, root.accent)
       radius: height / 2
     }
     Rectangle {
@@ -516,75 +604,128 @@ Ui.Panel {
     }
   }
 
+  // One reading per line: a label in the first 30%, a meter, and values in
+  // fixed-width columns on the right. `time` reserves the countdown column
+  // whenever `reserveTime` is set, so limit meters line up with or without
+  // a reset; rows without it give the whole value area to `value`.
+  component ValueRow: Item {
+    id: row
+    property string label: ""
+    property real fraction: 0
+    property bool showMeter: true
+    property bool alarming: false
+    property string value: ""
+    property color valueColor: alarming ? root.urgent : root.foreground
+    property bool valueBold: true
+    property string time: ""
+    property bool reserveTime: false
+    property string description: ""
+
+    // Anchored rather than laid out: widths here derive from the row's own
+    // width, which a RowLayout would feed back into its implicit size.
+    implicitHeight: Math.max(rowLabel.implicitHeight, rowValue.implicitHeight)
+    Accessible.role: Accessible.StaticText
+    Accessible.name: description
+
+    HoverHandler {
+      id: rowHover
+    }
+
+    Ui.PanelToolTip {
+      visible: rowHover.hovered && row.description !== ""
+      implicitWidth: Math.min(implicitContentWidth + leftPadding + rightPadding, Commons.Style.space(320))
+      text: row.description
+    }
+
+    SmallLabel {
+      id: rowLabel
+      anchors.left: parent.left
+      anchors.verticalCenter: parent.verticalCenter
+      width: Math.round(row.width * 0.3)
+      text: row.label
+      wrapMode: Text.NoWrap
+      elide: Text.ElideRight
+    }
+    Meter {
+      anchors.left: rowLabel.right
+      anchors.leftMargin: Commons.Style.space(8)
+      anchors.right: rowValue.left
+      anchors.rightMargin: Commons.Style.space(16)
+      anchors.verticalCenter: parent.verticalCenter
+      fraction: row.fraction
+      alarming: row.alarming
+      opacity: row.showMeter ? 1 : 0
+    }
+    SmallLabel {
+      id: rowValue
+      anchors.right: rowTime.visible ? rowTime.left : parent.right
+      anchors.rightMargin: rowTime.visible ? root.columnGap : 0
+      anchors.verticalCenter: parent.verticalCenter
+      // A long amount may push its meter in rather than lose digits.
+      width: row.reserveTime ? root.percentWidth : Math.min(row.width * 0.45, Math.max(root.valueWidth, implicitWidth))
+      text: row.value
+      color: row.valueColor
+      font.bold: row.valueBold
+      wrapMode: Text.NoWrap
+      elide: Text.ElideLeft
+      horizontalAlignment: Text.AlignRight
+    }
+    SmallLabel {
+      id: rowTime
+      visible: row.reserveTime
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      width: root.timeWidth
+      text: row.time
+      color: root.dim
+      wrapMode: Text.NoWrap
+      elide: Text.ElideRight
+      horizontalAlignment: Text.AlignRight
+    }
+  }
+
   component Details: ColumnLayout {
     id: details
     required property var dataItem
     required property bool sourceFailed
     required property var fallbackTime
-    visible: dataItem.plan !== "" || dataItem.limits.length > 0 || dataItem.balance !== null || dataItem.resetCredits > 0 || sourceFailed || dataItem.stale || dataItem.status !== "" || dataItem.help !== ""
-    spacing: Commons.Style.spacing.md
-
-    SupportingLabel {
-      Layout.fillWidth: true
-      visible: text !== ""
-      text: details.dataItem.plan
-    }
+    visible: dataItem.limits.length > 0 || dataItem.balance !== null || dataItem.resetCredits > 0 || sourceFailed || dataItem.stale || dataItem.status !== "" || dataItem.help !== ""
+    spacing: Commons.Style.space(12)
 
     Repeater {
       model: details.dataItem.limits
-      ColumnLayout {
-        id: limit
+      ValueRow {
         required property var modelData
         Layout.fillWidth: true
-        spacing: Commons.Style.spacing.xs
-
-        RowLayout {
-          Layout.fillWidth: true
-          spacing: Commons.Style.spacing.lg
-
-          Label {
-            Layout.fillWidth: true
-            text: limit.modelData.label || strings.t("limit")
-          }
-          Label {
-            Layout.alignment: Qt.AlignTop
-            Layout.maximumWidth: popup.contentWidth * 0.42
-            text: strings.t("percentUsed").arg(root.formatCount(Math.round(limit.modelData.percent * 100)))
-            font.bold: true
-            horizontalAlignment: Text.AlignRight
-          }
-        }
-        Meter {
-          Layout.fillWidth: true
-          fraction: limit.modelData.percent
-          alarming: fraction >= 0.9
-        }
-        SupportingLabel {
-          Layout.fillWidth: true
-          visible: text !== ""
-          text: root.resetText(limit.modelData.reset)
-        }
+        label: modelData.label || strings.t("limit")
+        fraction: modelData.percent
+        alarming: modelData.percent >= 0.9
+        value: root.percentText(modelData.percent)
+        time: root.resetClock(modelData.reset)
+        reserveTime: true
+        description: root.limitDescription(modelData)
       }
     }
 
+    // A prepaid balance drains toward empty instead of filling toward a cap.
     ColumnLayout {
       readonly property var balance: details.dataItem.balance
+      readonly property bool funded: balance !== null && balance.funded > 0
+      readonly property bool low: funded && balance.remaining / balance.funded <= 0.1
       Layout.fillWidth: true
       visible: balance !== null
-      spacing: Commons.Style.spacing.xs
+      spacing: Commons.Style.space(6)
 
-      Label {
+      ValueRow {
         Layout.fillWidth: true
-        text: parent.balance ? strings.t("remaining").arg(root.money(parent.balance.remaining, parent.balance.currency)) : ""
-        font.bold: true
+        label: strings.t("balance")
+        showMeter: parent.funded
+        fraction: parent.funded ? parent.balance.remaining / parent.balance.funded : 0
+        alarming: parent.low
+        value: parent.balance ? root.money(parent.balance.remaining, parent.balance.currency) : ""
+        description: parent.balance ? strings.t("remaining").arg(value) : ""
       }
-      Meter {
-        Layout.fillWidth: true
-        visible: parent.balance?.funded > 0
-        fraction: visible ? parent.balance.remaining / parent.balance.funded : 0
-        alarming: visible && fraction <= 0.1
-      }
-      SupportingLabel {
+      Caption {
         Layout.fillWidth: true
         visible: text !== ""
         text: {
@@ -594,29 +735,39 @@ Ui.Panel {
       }
     }
 
-    Label {
+    ColumnLayout {
       Layout.fillWidth: true
-      visible: details.dataItem.resetCredits > 0
-      text: visible ? root.counted("resetCredits", details.dataItem.resetCredits) : ""
-    }
+      visible: resetCredits.visible || staleNote.visible || statusNote.visible || helpNote.visible
+      spacing: Commons.Style.space(4)
 
-    SupportingLabel {
-      Layout.fillWidth: true
-      visible: details.sourceFailed || details.dataItem.stale
-      text: visible ? root.staleText(details.dataItem.fetched ?? details.fallbackTime) : ""
-    }
+      Caption {
+        id: resetCredits
+        Layout.fillWidth: true
+        visible: details.dataItem.resetCredits > 0
+        text: visible ? root.counted("resetCredits", details.dataItem.resetCredits) : ""
+      }
 
-    Label {
-      Layout.fillWidth: true
-      visible: text !== ""
-      color: root.urgent
-      text: details.dataItem.status
-    }
+      Caption {
+        id: staleNote
+        Layout.fillWidth: true
+        visible: details.sourceFailed || details.dataItem.stale
+        text: visible ? root.staleText(details.dataItem.fetched ?? details.fallbackTime) : ""
+      }
 
-    SupportingLabel {
-      Layout.fillWidth: true
-      visible: text !== ""
-      text: details.dataItem.help
+      SmallLabel {
+        id: statusNote
+        Layout.fillWidth: true
+        visible: text !== ""
+        color: root.urgent
+        text: details.dataItem.status
+      }
+
+      Caption {
+        id: helpNote
+        Layout.fillWidth: true
+        visible: text !== ""
+        text: details.dataItem.help
+      }
     }
   }
 }
